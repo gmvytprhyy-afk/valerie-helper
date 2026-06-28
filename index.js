@@ -952,27 +952,39 @@ const handleHelp = async (interaction) => {
       { name: 'setlogchannel', description: 'Set logging channel', usage: '/setlogchannel [channel]', category: 'Logging (Admin)' }
     ];
     
-    // Group by category
+    // Group by category (max 25 fields)
     const categories = {};
     commandList.forEach(cmd => {
       if (!categories[cmd.category]) categories[cmd.category] = [];
       categories[cmd.category].push(cmd);
     });
     
-    const categoryData = Object.entries(categories).map(([name, commands]) => ({
-      name: name,
-      commands: commands.map(c => c.name)
-    }));
+    // Build fields (only 1 field per category = max ~11 fields)
+    const fields = [];
+    Object.entries(categories).forEach(([category, commands]) => {
+      const commandNames = commands.map(cmd => `\`/${cmd.name}\``).join(' • ');
+      fields.push({
+        name: `📂 ${category} (${commands.length})`,
+        value: commandNames || 'No commands',
+        inline: false
+      });
+    });
     
-    const embed = helpEmbed({
-      commands: commandList,
-      user: interaction.user.username,
-      categories: categoryData,
-      author: {
+    // Create the embed manually to avoid helpEmbed's field limit
+    const embed = new EmbedBuilder()
+      .setColor('#1ABC9C')
+      .setTitle('📚 Help Center')
+      .setDescription('Here are all available commands:')
+      .setAuthor({
         name: interaction.client.user.username,
         iconURL: interaction.client.user.displayAvatarURL()
-      }
-    });
+      })
+      .addFields(fields)
+      .setFooter({ 
+        text: `Requested by ${interaction.user.username}`,
+        iconURL: interaction.user.displayAvatarURL()
+      })
+      .setTimestamp();
     
     await interaction.reply({ embeds: [embed] });
   } catch (error) {
