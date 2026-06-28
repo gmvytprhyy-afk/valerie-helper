@@ -1,4 +1,4 @@
-// index.js - Main Entry Point
+// index.js - Main Entry Point (FIXED)
 const { Client, GatewayIntentBits, REST, Routes, ActivityType, ComponentType } = require('discord.js');
 const config = require('./config.json');
 const { pool, initDatabase } = require('./database.js');
@@ -35,7 +35,6 @@ const {
   timeoutEmbed,
   untimeoutEmbed,
   purgeEmbed,
-  warningEmbed as warnEmbed,
   warningsListEmbed,
   clearWarningsEmbed,
   shopAddItemEmbed,
@@ -586,12 +585,12 @@ const commands = [
 
 const registerCommands = async () => {
   try {
-    const rest = new REST({ version: '10' }).setToken(config.token);
+    const rest = new REST({ version: '10' }).setToken(process.env.BOT_TOKEN || config.token);
     
     console.log('🔄 Registering slash commands...');
     
     await rest.put(
-      Routes.applicationGuildCommands(config.clientId, config.guildId),
+      Routes.applicationGuildCommands(process.env.CLIENT_ID || config.clientId, process.env.GUILD_ID || config.guildId),
       { body: commands }
     );
     
@@ -1790,7 +1789,7 @@ const handleWarn = async (interaction) => {
     
     const result = await warnUser(interaction.guild, interaction.user.id, targetUser.id, reason, points);
     
-    const embed = warnEmbed(result, {
+    const embed = warningEmbed(result, {
       author: {
         name: interaction.user.username,
         iconURL: interaction.user.displayAvatarURL()
@@ -2515,6 +2514,59 @@ const handleBackupList = async (interaction) => {
   }
 };
 
+// ================ PERMISSION ERROR EMBED HELPER ================
+
+const permissionErrorEmbed = (error, options = {}) => {
+  return new EmbedBuilder()
+    .setColor('#ED4245')
+    .setTitle('⛔ Permission Denied')
+    .setDescription(error || 'You do not have permission to perform this action.')
+    .setAuthor({
+      name: options.author?.name || 'Unknown',
+      iconURL: options.author?.iconURL || null
+    })
+    .setTimestamp()
+    .setFooter({ text: 'Moderation System' });
+};
+
+// ================ TICKET USER ADD/REMOVE EMBED HELPERS ================
+
+const ticketUserAddEmbed = (result, options = {}) => {
+  return new EmbedBuilder()
+    .setColor('#2ECC71')
+    .setTitle('👤 User Added')
+    .setDescription(`User has been added to the ticket #${result.ticket.ticket_id}`)
+    .setAuthor({
+      name: options.author?.name || 'Unknown',
+      iconURL: options.author?.iconURL || null
+    })
+    .addFields(
+      { name: '🎫 Ticket ID', value: `#${result.ticket.ticket_id}`, inline: true },
+      { name: '👤 Added User', value: `<@${result.addedUser}>`, inline: true },
+      { name: '👤 Added By', value: `<@${options.addedBy}>`, inline: true }
+    )
+    .setTimestamp()
+    .setFooter({ text: 'Ticket System' });
+};
+
+const ticketUserRemoveEmbed = (result, options = {}) => {
+  return new EmbedBuilder()
+    .setColor('#E74C3C')
+    .setTitle('🚫 User Removed')
+    .setDescription(`User has been removed from the ticket #${result.ticket.ticket_id}`)
+    .setAuthor({
+      name: options.author?.name || 'Unknown',
+      iconURL: options.author?.iconURL || null
+    })
+    .addFields(
+      { name: '🎫 Ticket ID', value: `#${result.ticket.ticket_id}`, inline: true },
+      { name: '🚫 Removed User', value: `<@${result.removedUser}>`, inline: true },
+      { name: '👤 Removed By', value: `<@${options.removedBy}>`, inline: true }
+    )
+    .setTimestamp()
+    .setFooter({ text: 'Ticket System' });
+};
+
 // ================ INTERACTION HANDLER ================
 
 client.on('interactionCreate', async (interaction) => {
@@ -2644,7 +2696,7 @@ client.once('ready', async () => {
 
 const startBot = async () => {
   try {
-    await client.login(config.token);
+    await client.login(process.env.BOT_TOKEN || config.token);
   } catch (error) {
     console.error('❌ Failed to start bot:', error);
     process.exit(1);
