@@ -1,4 +1,4 @@
-// embeds.js - Complete Embed Builder System
+// embeds.js - Complete Embed Builder System (FIXED - Duplicate warningEmbed removed)
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 
 // ================ CONSTANTS ================
@@ -653,7 +653,8 @@ const purgeEmbed = (result, options = {}) => {
   });
 };
 
-const warningEmbed = (result, options = {}) => {
+// ================ MODERATION WARNING EMBED (RENAMED FROM warningEmbed TO AVOID DUPLICATE) ================
+const moderationWarningEmbed = (result, options = {}) => {
   return createBaseEmbed({
     color: COLORS.WARNING,
     title: '⚠️ User Warned',
@@ -1281,7 +1282,7 @@ module.exports = {
   timeoutEmbed,
   untimeoutEmbed,
   purgeEmbed,
-  warningEmbed,
+  moderationWarningEmbed,
   warningsListEmbed,
   clearWarningsEmbed,
   
