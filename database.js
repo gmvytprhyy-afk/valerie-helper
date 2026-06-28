@@ -1,14 +1,33 @@
 // database.js - PostgreSQL Connection & Complete Database Helpers
 const { Pool } = require('pg');
-const config = require('./config.json');
 
-const pool = new Pool({
-  host: config.database.host,
-  port: config.database.port,
-  user: config.database.user,
-  password: config.database.password,
-  database: config.database.database,
-});
+// Check if running on Railway
+const isRailway = !!process.env.DATABASE_URL;
+
+let pool;
+
+if (isRailway) {
+  console.log('🚂 Running on Railway - connecting to PostgreSQL');
+  pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: {
+      rejectUnauthorized: false
+    }
+  });
+} else {
+  console.log('💻 Running locally - using config.json');
+  const config = require('./config.json');
+  pool = new Pool({
+    host: config.database.host,
+    port: config.database.port,
+    user: config.database.user,
+    password: config.database.password,
+    database: config.database.database
+  });
+}
+
+pool.on('connect', () => console.log('✅ Connected to PostgreSQL'));
+pool.on('error', (err) => console.error('❌ PostgreSQL error:', err));
 
 pool.on('connect', () => console.log('✅ Connected to PostgreSQL'));
 pool.on('error', (err) => console.error('❌ PostgreSQL error:', err));
