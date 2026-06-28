@@ -881,10 +881,7 @@ const handlePing = async (interaction) => {
     // /help - Show available commands (AUTO-GENERATED)
 const handleHelp = async (interaction) => {
   try {
-    // Get all registered commands from the client
-    const allCommands = interaction.client.application.commands.cache;
-    
-    // Or use the hardcoded list with ALL commands
+    // Define ALL commands here
     const commandList = [
       // Economy
       { name: 'balance', description: 'Check your crystal balance', usage: '/balance [user]', category: 'Economy' },
@@ -917,25 +914,25 @@ const handleHelp = async (interaction) => {
       { name: 'editsellpanel', description: 'Edit sell panel', usage: '/editsellpanel', category: 'Sell (Admin)' },
       { name: 'deletesellpanel', description: 'Delete sell panel', usage: '/deletesellpanel', category: 'Sell (Admin)' },
       
-      // Tickets (Ticket Manager)
-      { name: 'claim', description: 'Claim a ticket', usage: '/claim', category: 'Tickets' },
-      { name: 'close', description: 'Close a ticket', usage: '/close', category: 'Tickets' },
-      { name: 'reopen', description: 'Reopen a ticket', usage: '/reopen', category: 'Tickets' },
-      { name: 'delete', description: 'Delete a ticket', usage: '/delete', category: 'Tickets' },
-      { name: 'rename', description: 'Rename ticket channel', usage: '/rename', category: 'Tickets' },
-      { name: 'adduser', description: 'Add user to ticket', usage: '/adduser', category: 'Tickets' },
-      { name: 'removeuser', description: 'Remove user from ticket', usage: '/removeuser', category: 'Tickets' },
-      { name: 'transcript', description: 'Generate ticket transcript', usage: '/transcript', category: 'Tickets' },
+      // Tickets
+      { name: 'claim', description: 'Claim a ticket', usage: '/claim [ticket_id]', category: 'Tickets' },
+      { name: 'close', description: 'Close a ticket', usage: '/close [ticket_id]', category: 'Tickets' },
+      { name: 'reopen', description: 'Reopen a ticket', usage: '/reopen [ticket_id]', category: 'Tickets' },
+      { name: 'delete', description: 'Delete a ticket', usage: '/delete [ticket_id]', category: 'Tickets' },
+      { name: 'rename', description: 'Rename ticket channel', usage: '/rename [ticket_id] [name]', category: 'Tickets' },
+      { name: 'adduser', description: 'Add user to ticket', usage: '/adduser [ticket_id] [user]', category: 'Tickets' },
+      { name: 'removeuser', description: 'Remove user from ticket', usage: '/removeuser [ticket_id] [user]', category: 'Tickets' },
+      { name: 'transcript', description: 'Generate ticket transcript', usage: '/transcript [ticket_id]', category: 'Tickets' },
       
       // Moderation
-      { name: 'ban', description: 'Ban a user', usage: '/ban', category: 'Moderation' },
-      { name: 'kick', description: 'Kick a user', usage: '/kick', category: 'Moderation' },
-      { name: 'timeout', description: 'Timeout a user', usage: '/timeout', category: 'Moderation' },
-      { name: 'untimeout', description: 'Remove timeout', usage: '/untimeout', category: 'Moderation' },
-      { name: 'purge', description: 'Delete messages', usage: '/purge', category: 'Moderation' },
-      { name: 'warn', description: 'Warn a user', usage: '/warn', category: 'Moderation' },
-      { name: 'warnings', description: 'View warnings', usage: '/warnings', category: 'Moderation' },
-      { name: 'clearwarnings', description: 'Clear warnings', usage: '/clearwarnings', category: 'Moderation' },
+      { name: 'ban', description: 'Ban a user', usage: '/ban [user] [reason]', category: 'Moderation' },
+      { name: 'kick', description: 'Kick a user', usage: '/kick [user] [reason]', category: 'Moderation' },
+      { name: 'timeout', description: 'Timeout a user', usage: '/timeout [user] [duration]', category: 'Moderation' },
+      { name: 'untimeout', description: 'Remove timeout', usage: '/untimeout [user]', category: 'Moderation' },
+      { name: 'purge', description: 'Delete messages', usage: '/purge [amount]', category: 'Moderation' },
+      { name: 'warn', description: 'Warn a user', usage: '/warn [user] [reason]', category: 'Moderation' },
+      { name: 'warnings', description: 'View warnings', usage: '/warnings [user]', category: 'Moderation' },
+      { name: 'clearwarnings', description: 'Clear warnings', usage: '/clearwarnings [user]', category: 'Moderation' },
       
       // AutoMod (Admin)
       { name: 'automod enable', description: 'Enable AutoMod', usage: '/automod enable', category: 'AutoMod (Admin)' },
@@ -944,7 +941,7 @@ const handleHelp = async (interaction) => {
       
       // Backup (Admin)
       { name: 'backup', description: 'Create backup', usage: '/backup', category: 'Backup (Admin)' },
-      { name: 'restore', description: 'Restore backup', usage: '/restore', category: 'Backup (Admin)' },
+      { name: 'restore', description: 'Restore backup', usage: '/restore [code]', category: 'Backup (Admin)' },
       { name: 'backuplist', description: 'List backups', usage: '/backuplist', category: 'Backup (Admin)' },
       
       // Welcome/Leave (Admin)
@@ -952,7 +949,7 @@ const handleHelp = async (interaction) => {
       { name: 'setleave', description: 'Configure leave system', usage: '/setleave', category: 'Welcome/Leave (Admin)' },
       
       // Logging (Admin)
-      { name: 'setlogchannel', description: 'Set logging channel', usage: '/setlogchannel', category: 'Logging (Admin)' }
+      { name: 'setlogchannel', description: 'Set logging channel', usage: '/setlogchannel [channel]', category: 'Logging (Admin)' }
     ];
     
     // Group by category
@@ -977,33 +974,11 @@ const handleHelp = async (interaction) => {
       }
     });
     
-    await interaction.reply({ embeds: [embed], ephemeral: false });
-  } catch (error) {
-    console.error('Error in /help:', error);
-    const embed = errorEmbed('Failed to show help.');
-    await interaction.reply({ embeds: [embed], ephemeral: false });
-  }
-};
-    
-    const embed = helpEmbed({
-      commands: commandList,
-      user: interaction.user.username,
-      categories: [
-        { name: '💎 Economy', commands: ['balance', 'leaderboard'] },
-        { name: '📊 Tracking', commands: ['invites', 'inviteleaderboard', 'messages', 'messageleaderboard'] },
-        { name: '🔧 Utility', commands: ['ping', 'help', 'serverinfo', 'userinfo', 'avatar', 'banner', 'botinfo'] }
-      ],
-      author: {
-        name: interaction.client.user.username,
-        iconURL: interaction.client.user.displayAvatarURL()
-      }
-    });
-    
-    await interaction.reply({ embeds: [embed], ephemeral: false });
+    await interaction.reply({ embeds: [embed] });
   } catch (error) {
     console.error('Error in /help:', error);
     const embed = errorEmbed('Failed to show help. Please try again later.');
-    await interaction.reply({ embeds: [embed], ephemeral: false });
+    await interaction.reply({ embeds: [embed] });
   }
 };
 
