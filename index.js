@@ -878,8 +878,6 @@ const handlePing = async (interaction) => {
 /**
  * /help - Show available commands
  */
-const handleHelp = async (interaction) => {
-  try {
     // /help - Show available commands (AUTO-GENERATED)
 const handleHelp = async (interaction) => {
   try {
