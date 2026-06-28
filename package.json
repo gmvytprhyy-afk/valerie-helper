@@ -1,1 +1,20 @@
-.
+{
+  "name": "valerie-helper",
+  "version": "1.0.0",
+  "description": "Valerie Helper - Discord Bot with PostgreSQL",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.14.1",
+    "pg": "^8.11.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": ["discord", "bot", "moderation", "economy", "tickets"],
+  "author": "Valerie Helper",
+  "license": "MIT"
+}
