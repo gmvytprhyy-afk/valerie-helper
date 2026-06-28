@@ -984,6 +984,7 @@ module.exports = {
   
   // Message Rewards
   processMessage,
+  processMessageReward,
   getUserMessageStats,
   getMessageLeaderboardWithUsers,
   
