@@ -1,1 +1,2669 @@
-.
+// index.js - Main Entry Point
+const { Client, GatewayIntentBits, REST, Routes, ActivityType, ComponentType } = require('discord.js');
+const config = require('./config.json');
+const { pool, initDatabase } = require('./database.js');
+const { registerEvents } = require('./events.js');
+const { 
+  successEmbed, 
+  errorEmbed, 
+  infoEmbed, 
+  warningEmbed,
+  economyEmbed, 
+  leaderboardEmbed, 
+  helpEmbed,
+  serverInfoEmbed,
+  userInfoEmbed,
+  avatarEmbed,
+  bannerEmbed,
+  botInfoEmbed,
+  pingEmbed,
+  inviteStatsEmbed,
+  inviteLeaderboardEmbed,
+  messageStatsEmbed,
+  messageLeaderboardEmbed,
+  logChannelEmbed,
+  ticketCreateEmbed,
+  ticketClaimEmbed,
+  ticketCloseEmbed,
+  ticketReopenEmbed,
+  ticketDeleteEmbed,
+  ticketRenameEmbed,
+  ticketTranscriptEmbed,
+  ticketPermissionErrorEmbed,
+  banEmbed,
+  kickEmbed,
+  timeoutEmbed,
+  untimeoutEmbed,
+  purgeEmbed,
+  warningEmbed as warnEmbed,
+  warningsListEmbed,
+  clearWarningsEmbed,
+  shopAddItemEmbed,
+  shopEditItemEmbed,
+  shopRemoveItemEmbed,
+  shopRestockEmbed,
+  shopListEmbed,
+  sellPanelCreateEmbed,
+  sellPanelEditEmbed,
+  sellPanelDeleteEmbed,
+  backupCreatedEmbed,
+  backupRestoredEmbed,
+  backupListEmbed,
+  backupErrorEmbed,
+  backupConfirmRestoreEmbed
+} = require('./embeds.js');
+const { 
+  getBalance, 
+  getStats, 
+  getRank, 
+  getCrystalLeaderboardWithUsers,
+  getTransactionHistory,
+  getUserMessageStats,
+  getMessageLeaderboardWithUsers,
+  getUserInviteStats,
+  getInviteLeaderboardWithUsers,
+  createShopCategory,
+  getShopCategories,
+  createShopItemCommand,
+  editShopItemCommand,
+  deleteShopItemCommand,
+  restockShopItem,
+  purchaseShopItem,
+  getFullShopList,
+  getUserPurchaseHistory,
+  createSellPanelCommand,
+  editSellPanelCommand,
+  deleteSellPanelCommand,
+  getSellPanelsByGuild,
+  createSellListing,
+  getSellListingsByGuild,
+  getUserSellListings,
+  approveSellListing,
+  rejectSellListing,
+  completeSellTransactionCommand,
+  getUserSellHistory,
+  formatSellListingsForDisplay
+} = require('./economy.js');
+const {
+  getTicketById,
+  getTicketsByGuild,
+  getUserTickets,
+  getClaimedTickets,
+  getOpenTickets,
+  getClosedTickets,
+  claimTicketById,
+  closeTicketById,
+  reopenTicketById,
+  deleteTicketById,
+  renameTicketChannel,
+  addUserToTicket,
+  removeUserFromTicket,
+  generateTranscript,
+  getTicketTranscript,
+  assignManagerToTicket,
+  unassignManagerFromTicket,
+  getTicketStatistics,
+  getUserTicketStatistics,
+  hasTicketManagerRole,
+  getGuildTicketConfig,
+  updateGuildTicketConfig,
+  canCreateTicket
+} = require('./tickets.js');
+const {
+  banUser,
+  kickUser,
+  timeoutUser,
+  untimeoutUser,
+  purgeMessages,
+  warnUser,
+  getUserWarnings,
+  clearAllWarnings,
+  getUserModerationHistory,
+  getGuildModerationStats,
+  processAutoMod,
+  getAutoModConfig,
+  enableAutoMod,
+  disableAutoMod,
+  updateAutoModConfig,
+  addBadWordToGuild,
+  removeBadWordFromGuild
+} = require('./moderation.js');
+const {
+  createFullBackup,
+  restoreFromBackup,
+  listBackups,
+  isValidBackupCode,
+  getBackupDetails
+} = require('./backup.js');
+const {
+  getBotInfo,
+  getServerInfo,
+  getUserInfo,
+  getUserBanner,
+  setLogChannel,
+  getLogSettings,
+  getRecentLogs
+} = require('./utility.js');
+
+const client = new Client({
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent,
+    GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.GuildMessageReactions,
+    GatewayIntentBits.GuildVoiceStates,
+    GatewayIntentBits.GuildPresences,
+    GatewayIntentBits.GuildModeration,
+    GatewayIntentBits.MessageTyping
+  ],
+});
+
+// ================ SLASH COMMAND DEFINITIONS ================
+
+const commands = [
+  // ===== ECONOMY COMMANDS =====
+  {
+    name: 'balance',
+    description: 'Check your crystal balance and stats',
+    options: [
+      { name: 'user', description: 'Check another user\'s balance', type: 6, required: false }
+    ]
+  },
+  {
+    name: 'leaderboard',
+    description: 'View the top crystal holders in the server',
+    options: [
+      { name: 'limit', description: 'Number of users to show (1-20)', type: 4, required: false, min_value: 1, max_value: 20 }
+    ]
+  },
+  
+  // ===== INVITE COMMANDS =====
+  {
+    name: 'invites',
+    description: 'View your or another user\'s invite stats',
+    options: [
+      { name: 'user', description: 'User to view invite stats for', type: 6, required: false }
+    ]
+  },
+  {
+    name: 'inviteleaderboard',
+    description: 'View the top inviters in the server',
+    options: [
+      { name: 'limit', description: 'Number of users to show (1-10)', type: 4, required: false, min_value: 1, max_value: 10 }
+    ]
+  },
+  
+  // ===== MESSAGE COMMANDS =====
+  {
+    name: 'messages',
+    description: 'View your or another user\'s message stats',
+    options: [
+      { name: 'user', description: 'User to view message stats for', type: 6, required: false }
+    ]
+  },
+  {
+    name: 'messageleaderboard',
+    description: 'View the top message senders in the server',
+    options: [
+      { 
+        name: 'period', 
+        description: 'Time period for the leaderboard', 
+        type: 3, 
+        required: false,
+        choices: [
+          { name: 'All Time', value: 'total' },
+          { name: 'Today', value: 'daily' },
+          { name: 'This Week', value: 'weekly' }
+        ]
+      },
+      { name: 'limit', description: 'Number of users to show (1-10)', type: 4, required: false, min_value: 1, max_value: 10 }
+    ]
+  },
+  
+  // ===== SHOP COMMANDS =====
+  {
+    name: 'additem',
+    description: 'Add an item to the shop (Admin only)',
+    options: [
+      { name: 'name', description: 'Item name', type: 3, required: true, max_length: 100 },
+      { name: 'price', description: 'Item price in crystals', type: 4, required: true, min_value: 0 },
+      { name: 'description', description: 'Item description', type: 3, required: false, max_length: 500 },
+      { name: 'stock', description: 'Stock (-1 for unlimited)', type: 4, required: false, min_value: -1 },
+      { name: 'category', description: 'Item category', type: 3, required: false, max_length: 50 },
+      { name: 'image', description: 'Item image URL', type: 3, required: false },
+      { name: 'role', description: 'Role ID to grant on purchase', type: 3, required: false },
+      { name: 'limited', description: 'Is this a limited item?', type: 5, required: false },
+      { name: 'limit_per_user', description: 'Limit per user', type: 4, required: false, min_value: 1 }
+    ]
+  },
+  {
+    name: 'edititem',
+    description: 'Edit a shop item (Admin only)',
+    options: [
+      { name: 'item_id', description: 'ID of the item to edit', type: 4, required: true },
+      { name: 'name', description: 'New item name', type: 3, required: false, max_length: 100 },
+      { name: 'price', description: 'New item price', type: 4, required: false, min_value: 0 },
+      { name: 'description', description: 'New item description', type: 3, required: false, max_length: 500 },
+      { name: 'stock', description: 'New stock (-1 for unlimited)', type: 4, required: false, min_value: -1 },
+      { name: 'category', description: 'New item category', type: 3, required: false, max_length: 50 },
+      { name: 'image', description: 'New item image URL', type: 3, required: false },
+      { name: 'role', description: 'New role ID to grant', type: 3, required: false },
+      { name: 'limited', description: 'Is this a limited item?', type: 5, required: false },
+      { name: 'limit_per_user', description: 'New limit per user', type: 4, required: false, min_value: 1 }
+    ]
+  },
+  {
+    name: 'removeitem',
+    description: 'Remove an item from the shop (Admin only)',
+    options: [
+      { name: 'item_id', description: 'ID of the item to remove', type: 4, required: true }
+    ]
+  },
+  {
+    name: 'restock',
+    description: 'Restock a shop item (Admin only)',
+    options: [
+      { name: 'item_id', description: 'ID of the item to restock', type: 4, required: true },
+      { name: 'amount', description: 'Amount to add to stock', type: 4, required: true, min_value: 1 }
+    ]
+  },
+  {
+    name: 'shoplist',
+    description: 'View all items in the shop',
+    options: [
+      { name: 'inactive', description: 'Show inactive items', type: 5, required: false }
+    ]
+  },
+  
+  // ===== SELL COMMANDS =====
+  {
+    name: 'createsellpanel',
+    description: 'Create a new sell panel (Admin only)',
+    options: [
+      { name: 'title', description: 'Panel title', type: 3, required: true, max_length: 100 },
+      { name: 'description', description: 'Panel description', type: 3, required: true, max_length: 1000 },
+      { name: 'channel', description: 'Channel for the sell panel', type: 7, required: true },
+      { name: 'color', description: 'Embed color (hex code)', type: 3, required: false, max_length: 7 },
+      { name: 'thumbnail', description: 'Thumbnail image URL', type: 3, required: false },
+      { name: 'require_approval', description: 'Require manager approval for listings?', type: 5, required: false },
+      { name: 'auto_delete', description: 'Auto-delete listings after completion?', type: 5, required: false }
+    ]
+  },
+  {
+    name: 'editsellpanel',
+    description: 'Edit an existing sell panel (Admin only)',
+    options: [
+      { name: 'panel_id', description: 'ID of the panel to edit', type: 4, required: true },
+      { name: 'title', description: 'New panel title', type: 3, required: false, max_length: 100 },
+      { name: 'description', description: 'New panel description', type: 3, required: false, max_length: 1000 },
+      { name: 'channel', description: 'New channel for the panel', type: 7, required: false },
+      { name: 'color', description: 'New embed color (hex code)', type: 3, required: false, max_length: 7 },
+      { name: 'thumbnail', description: 'New thumbnail image URL', type: 3, required: false },
+      { name: 'require_approval', description: 'Require manager approval for listings?', type: 5, required: false },
+      { name: 'auto_delete', description: 'Auto-delete listings after completion?', type: 5, required: false }
+    ]
+  },
+  {
+    name: 'deletesellpanel',
+    description: 'Delete a sell panel (Admin only)',
+    options: [
+      { name: 'panel_id', description: 'ID of the panel to delete', type: 4, required: true }
+    ]
+  },
+  
+  // ===== TICKET MANAGEMENT COMMANDS =====
+  {
+    name: 'claim',
+    description: 'Claim a ticket (Ticket Manager only)',
+    options: [
+      { name: 'ticket_id', description: 'ID of the ticket to claim', type: 4, required: true }
+    ]
+  },
+  {
+    name: 'close',
+    description: 'Close a ticket (Ticket Manager only)',
+    options: [
+      { name: 'ticket_id', description: 'ID of the ticket to close', type: 4, required: true },
+      { name: 'reason', description: 'Reason for closing the ticket', type: 3, required: false, max_length: 200 }
+    ]
+  },
+  {
+    name: 'reopen',
+    description: 'Reopen a closed ticket (Ticket Manager only)',
+    options: [
+      { name: 'ticket_id', description: 'ID of the ticket to reopen', type: 4, required: true }
+    ]
+  },
+  {
+    name: 'delete',
+    description: 'Delete a ticket (generates transcript) (Ticket Manager only)',
+    options: [
+      { name: 'ticket_id', description: 'ID of the ticket to delete', type: 4, required: true }
+    ]
+  },
+  {
+    name: 'rename',
+    description: 'Rename a ticket channel (Ticket Manager only)',
+    options: [
+      { name: 'ticket_id', description: 'ID of the ticket to rename', type: 4, required: true },
+      { name: 'name', description: 'New channel name', type: 3, required: true, max_length: 100 }
+    ]
+  },
+  {
+    name: 'adduser',
+    description: 'Add a user to a ticket (Ticket Manager only)',
+    options: [
+      { name: 'ticket_id', description: 'ID of the ticket', type: 4, required: true },
+      { name: 'user', description: 'User to add', type: 6, required: true }
+    ]
+  },
+  {
+    name: 'removeuser',
+    description: 'Remove a user from a ticket (Ticket Manager only)',
+    options: [
+      { name: 'ticket_id', description: 'ID of the ticket', type: 4, required: true },
+      { name: 'user', description: 'User to remove', type: 6, required: true }
+    ]
+  },
+  {
+    name: 'transcript',
+    description: 'Generate a transcript for a ticket (Ticket Manager only)',
+    options: [
+      { name: 'ticket_id', description: 'ID of the ticket', type: 4, required: true }
+    ]
+  },
+  
+  // ===== MODERATION COMMANDS =====
+  {
+    name: 'ban',
+    description: 'Ban a user from the server',
+    options: [
+      { name: 'user', description: 'User to ban', type: 6, required: true },
+      { name: 'reason', description: 'Reason for the ban', type: 3, required: false, max_length: 200 },
+      { name: 'delete_days', description: 'Days of messages to delete (0-7)', type: 4, required: false, min_value: 0, max_value: 7 }
+    ]
+  },
+  {
+    name: 'kick',
+    description: 'Kick a user from the server',
+    options: [
+      { name: 'user', description: 'User to kick', type: 6, required: true },
+      { name: 'reason', description: 'Reason for the kick', type: 3, required: false, max_length: 200 }
+    ]
+  },
+  {
+    name: 'timeout',
+    description: 'Timeout a user (mute)',
+    options: [
+      { name: 'user', description: 'User to timeout', type: 6, required: true },
+      { name: 'duration', description: 'Duration in minutes (1-40320)', type: 4, required: true, min_value: 1, max_value: 40320 },
+      { name: 'reason', description: 'Reason for the timeout', type: 3, required: false, max_length: 200 }
+    ]
+  },
+  {
+    name: 'untimeout',
+    description: 'Remove timeout from a user',
+    options: [
+      { name: 'user', description: 'User to untimeout', type: 6, required: true },
+      { name: 'reason', description: 'Reason for removing timeout', type: 3, required: false, max_length: 200 }
+    ]
+  },
+  {
+    name: 'purge',
+    description: 'Delete messages in the channel',
+    options: [
+      { name: 'amount', description: 'Number of messages to delete (1-100)', type: 4, required: true, min_value: 1, max_value: 100 },
+      { name: 'user', description: 'Delete only messages from this user', type: 6, required: false },
+      { name: 'reason', description: 'Reason for the purge', type: 3, required: false, max_length: 200 }
+    ]
+  },
+  {
+    name: 'warn',
+    description: 'Warn a user',
+    options: [
+      { name: 'user', description: 'User to warn', type: 6, required: true },
+      { name: 'reason', description: 'Reason for the warning', type: 3, required: false, max_length: 200 },
+      { name: 'points', description: 'Warning points (default: 1)', type: 4, required: false, min_value: 1 }
+    ]
+  },
+  {
+    name: 'warnings',
+    description: 'View warnings for a user',
+    options: [
+      { name: 'user', description: 'User to view warnings for', type: 6, required: true }
+    ]
+  },
+  {
+    name: 'clearwarnings',
+    description: 'Clear all warnings for a user',
+    options: [
+      { name: 'user', description: 'User to clear warnings for', type: 6, required: true }
+    ]
+  },
+  
+  // ===== UTILITY COMMANDS =====
+  {
+    name: 'ping',
+    description: 'Check bot latency and database connection'
+  },
+  {
+    name: 'help',
+    description: 'Get help with bot commands and features'
+  },
+  {
+    name: 'serverinfo',
+    description: 'View detailed server information'
+  },
+  {
+    name: 'userinfo',
+    description: 'View detailed user information',
+    options: [
+      { name: 'user', description: 'User to view info for', type: 6, required: false }
+    ]
+  },
+  {
+    name: 'avatar',
+    description: 'View a user\'s avatar',
+    options: [
+      { name: 'user', description: 'User to view avatar of', type: 6, required: false }
+    ]
+  },
+  {
+    name: 'banner',
+    description: 'View a user\'s banner',
+    options: [
+      { name: 'user', description: 'User to view banner of', type: 6, required: false }
+    ]
+  },
+  {
+    name: 'botinfo',
+    description: 'View bot information and statistics'
+  },
+  
+  // ===== WELCOME/LEAVE COMMANDS =====
+  {
+    name: 'setwelcome',
+    description: 'Configure welcome system (Admin only)',
+    options: [
+      { name: 'channel', description: 'Channel for welcome messages', type: 7, required: false },
+      { name: 'message', description: 'Welcome message (use {user} placeholder)', type: 3, required: false, max_length: 500 },
+      { name: 'title', description: 'Embed title', type: 3, required: false, max_length: 100 },
+      { name: 'description', description: 'Embed description', type: 3, required: false, max_length: 500 },
+      { name: 'color', description: 'Embed color (hex code)', type: 3, required: false, max_length: 7 },
+      { name: 'dm_enabled', description: 'Send DM welcome message', type: 5, required: false },
+      { name: 'dm_message', description: 'DM welcome message', type: 3, required: false, max_length: 500 },
+      { name: 'role', description: 'Auto-assign role on join', type: 8, required: false },
+      { name: 'show_count', description: 'Show member count', type: 5, required: false },
+      { name: 'show_avatar', description: 'Show user avatar', type: 5, required: false }
+    ]
+  },
+  {
+    name: 'setleave',
+    description: 'Configure leave system (Admin only)',
+    options: [
+      { name: 'channel', description: 'Channel for leave messages', type: 7, required: false },
+      { name: 'message', description: 'Leave message (use {user} placeholder)', type: 3, required: false, max_length: 500 },
+      { name: 'title', description: 'Embed title', type: 3, required: false, max_length: 100 },
+      { name: 'description', description: 'Embed description', type: 3, required: false, max_length: 500 },
+      { name: 'color', description: 'Embed color (hex code)', type: 3, required: false, max_length: 7 },
+      { name: 'show_count', description: 'Show member count', type: 5, required: false },
+      { name: 'show_avatar', description: 'Show user avatar', type: 5, required: false }
+    ]
+  },
+  
+  // ===== LOGGING COMMAND =====
+  {
+    name: 'setlogchannel',
+    description: 'Set the logging channel (Admin only)',
+    options: [
+      { name: 'channel', description: 'Channel for logs', type: 7, required: true }
+    ]
+  },
+  
+  // ===== AUTOMOD COMMANDS =====
+  {
+    name: 'automod',
+    description: 'Configure AutoMod settings',
+    options: [
+      {
+        name: 'enable',
+        description: 'Enable AutoMod',
+        type: 1,
+        options: []
+      },
+      {
+        name: 'disable',
+        description: 'Disable AutoMod',
+        type: 1,
+        options: []
+      },
+      {
+        name: 'settings',
+        description: 'Configure AutoMod settings',
+        type: 1,
+        options: [
+          { name: 'anti_spam', description: 'Enable/disable anti-spam', type: 5, required: false },
+          { name: 'anti_invite', description: 'Enable/disable anti-invite links', type: 5, required: false },
+          { name: 'anti_bad_words', description: 'Enable/disable bad word filter', type: 5, required: false },
+          { name: 'anti_mention_spam', description: 'Enable/disable mention spam protection', type: 5, required: false },
+          { name: 'anti_duplicate', description: 'Enable/disable duplicate message protection', type: 5, required: false },
+          { name: 'anti_link_spam', description: 'Enable/disable link spam protection', type: 5, required: false },
+          { name: 'spam_threshold', description: 'Number of messages to trigger spam (default: 5)', type: 4, required: false, min_value: 3, max_value: 20 },
+          { name: 'spam_window', description: 'Time window in seconds (default: 5)', type: 4, required: false, min_value: 3, max_value: 30 },
+          { name: 'mention_threshold', description: 'Number of mentions to trigger (default: 3)', type: 4, required: false, min_value: 2, max_value: 10 },
+          { name: 'action_type', description: 'Action to take on violation', type: 3, required: false, choices: [
+            { name: 'Warn', value: 'warn' },
+            { name: 'Timeout', value: 'timeout' },
+            { name: 'Log Only', value: 'log' }
+          ]},
+          { name: 'timeout_duration', description: 'Timeout duration in minutes (default: 5)', type: 4, required: false, min_value: 1, max_value: 60 },
+          { name: 'log_channel', description: 'Channel for AutoMod logs', type: 7, required: false }
+        ]
+      }
+    ]
+  },
+  
+  // ===== BACKUP COMMANDS =====
+  {
+    name: 'backup',
+    description: 'Create a full backup of all server data (Admin only)'
+  },
+  {
+    name: 'restore',
+    description: 'Restore data from a backup (Admin only)',
+    options: [
+      { name: 'code', description: 'The backup code to restore from', type: 3, required: true, max_length: 19 }
+    ]
+  },
+  {
+    name: 'backuplist',
+    description: 'List all backups for this server (Admin only)'
+  }
+];
+
+// ================ SLASH COMMAND REGISTRATION ================
+
+const registerCommands = async () => {
+  try {
+    const rest = new REST({ version: '10' }).setToken(config.token);
+    
+    console.log('🔄 Registering slash commands...');
+    
+    await rest.put(
+      Routes.applicationGuildCommands(config.clientId, config.guildId),
+      { body: commands }
+    );
+    
+    console.log(`✅ ${commands.length} slash commands registered successfully!`);
+  } catch (error) {
+    console.error('❌ Failed to register slash commands:', error);
+  }
+};
+
+// ================ COMMAND HANDLERS ================
+
+/**
+ * /balance - Check crystal balance
+ */
+const handleBalance = async (interaction) => {
+  const targetUser = interaction.options.getUser('user') || interaction.user;
+  const guildId = interaction.guildId;
+  const userId = targetUser.id;
+  
+  try {
+    const stats = await getStats(userId, guildId);
+    const rank = await getRank(userId, guildId);
+    
+    const embed = economyEmbed(
+      `💎 ${targetUser.username}'s Balance`,
+      `Here are the crystal stats for ${targetUser}`,
+      {
+        balance: stats.crystals,
+        wallet: stats.crystals,
+        bank: stats.totalEarned - stats.totalSpent,
+        streak: stats.messageMilestones || 0,
+        author: {
+          name: `${targetUser.username}`,
+          iconURL: targetUser.displayAvatarURL()
+        },
+        fields: [
+          { name: '📊 Rank', value: `#${rank} out of all members`, inline: true },
+          { name: '📈 Total Earned', value: `${stats.totalEarned} 💎`, inline: true },
+          { name: '💸 Total Spent', value: `${stats.totalSpent} 💎`, inline: true },
+          { name: '💬 Messages', value: `${stats.messages} messages`, inline: true },
+          { name: '📅 Message Milestones', value: `${stats.messageMilestones} milestones`, inline: true },
+          { name: '🎯 Invites', value: `${stats.invites} invites (${stats.activeInvites} active)`, inline: true }
+        ],
+        thumbnail: targetUser.displayAvatarURL()
+      }
+    );
+    
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  } catch (error) {
+    console.error('Error in /balance:', error);
+    const embed = errorEmbed('Failed to fetch balance. Please try again later.');
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  }
+};
+
+/**
+ * /leaderboard - Show top crystal holders
+ */
+const handleLeaderboard = async (interaction) => {
+  const limit = interaction.options.getInteger('limit') || 10;
+  const guildId = interaction.guildId;
+  
+  try {
+    const leaderboardData = await getCrystalLeaderboardWithUsers(guildId, limit);
+    
+    if (!leaderboardData || leaderboardData.length === 0) {
+      const embed = infoEmbed('No users found in the leaderboard yet.');
+      await interaction.reply({ embeds: [embed], ephemeral: false });
+      return;
+    }
+    
+    const userRank = await getRank(interaction.user.id, guildId);
+    
+    const entries = [];
+    for (let i = 0; i < leaderboardData.length; i++) {
+      const entry = leaderboardData[i];
+      try {
+        const user = await client.users.fetch(entry.user_id);
+        entries.push({
+          name: user.username,
+          value: `${entry.crystals} 💎 (${entry.total_earned} earned total)`
+        });
+      } catch (err) {
+        entries.push({
+          name: `Unknown User (${entry.user_id})`,
+          value: `${entry.crystals} 💎 (${entry.total_earned} earned total)`
+        });
+      }
+    }
+    
+    const embed = leaderboardEmbed(
+      '🏆 Crystal Leaderboard',
+      `Top ${entries.length} crystal holders in the server`,
+      {
+        entries: entries,
+        position: userRank,
+        userValue: `${await getBalance(interaction.user.id, guildId)} 💎`,
+        author: {
+          name: interaction.guild.name,
+          iconURL: interaction.guild.iconURL()
+        },
+        thumbnail: interaction.guild.iconURL()
+      }
+    );
+    
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  } catch (error) {
+    console.error('Error in /leaderboard:', error);
+    const embed = errorEmbed('Failed to fetch leaderboard. Please try again later.');
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  }
+};
+
+/**
+ * /invites - View invite stats
+ */
+const handleInvites = async (interaction) => {
+  const targetUser = interaction.options.getUser('user') || interaction.user;
+  const guildId = interaction.guildId;
+  
+  try {
+    const stats = await getUserInviteStats(targetUser.id, guildId);
+    
+    const embed = inviteStatsEmbed(stats, targetUser, {
+      author: {
+        name: interaction.user.username,
+        iconURL: interaction.user.displayAvatarURL()
+      }
+    });
+    
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  } catch (error) {
+    console.error('Error in /invites:', error);
+    const embed = errorEmbed('Failed to fetch invite stats.');
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  }
+};
+
+/**
+ * /inviteleaderboard - View top inviters
+ */
+const handleInviteLeaderboard = async (interaction) => {
+  const limit = interaction.options.getInteger('limit') || 10;
+  const guildId = interaction.guildId;
+  
+  try {
+    const data = await getInviteLeaderboardWithUsers(guildId, limit);
+    
+    const entries = [];
+    for (let i = 0; i < data.length; i++) {
+      const entry = data[i];
+      try {
+        const user = await client.users.fetch(entry.user_id);
+        entries.push({
+          name: user.username,
+          joins: entry.total_joins,
+          active: entry.active_joins
+        });
+      } catch (err) {
+        entries.push({
+          name: `Unknown User (${entry.user_id})`,
+          joins: entry.total_joins,
+          active: entry.active_joins
+        });
+      }
+    }
+    
+    const embed = inviteLeaderboardEmbed(entries, {
+      author: {
+        name: interaction.user.username,
+        iconURL: interaction.user.displayAvatarURL()
+      }
+    });
+    
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  } catch (error) {
+    console.error('Error in /inviteleaderboard:', error);
+    const embed = errorEmbed('Failed to fetch leaderboard.');
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  }
+};
+
+/**
+ * /messages - View message stats
+ */
+const handleMessages = async (interaction) => {
+  const targetUser = interaction.options.getUser('user') || interaction.user;
+  const guildId = interaction.guildId;
+  
+  try {
+    const stats = await getUserMessageStats(targetUser.id, guildId);
+    
+    const embed = messageStatsEmbed(stats, targetUser, {
+      author: {
+        name: interaction.user.username,
+        iconURL: interaction.user.displayAvatarURL()
+      }
+    });
+    
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  } catch (error) {
+    console.error('Error in /messages:', error);
+    const embed = errorEmbed('Failed to fetch message stats.');
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  }
+};
+
+/**
+ * /messageleaderboard - View top message senders
+ */
+const handleMessageLeaderboard = async (interaction) => {
+  const period = interaction.options.getString('period') || 'total';
+  const limit = interaction.options.getInteger('limit') || 10;
+  const guildId = interaction.guildId;
+  
+  try {
+    const data = await getMessageLeaderboardWithUsers(guildId, limit, period);
+    
+    const entries = [];
+    for (let i = 0; i < data.length; i++) {
+      const entry = data[i];
+      try {
+        const user = await client.users.fetch(entry.user_id);
+        entries.push({
+          name: user.username,
+          count: entry.count
+        });
+      } catch (err) {
+        entries.push({
+          name: `Unknown User (${entry.user_id})`,
+          count: entry.count
+        });
+      }
+    }
+    
+    const embed = messageLeaderboardEmbed(entries, period, {
+      author: {
+        name: interaction.user.username,
+        iconURL: interaction.user.displayAvatarURL()
+      }
+    });
+    
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  } catch (error) {
+    console.error('Error in /messageleaderboard:', error);
+    const embed = errorEmbed('Failed to fetch leaderboard.');
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  }
+};
+
+/**
+ * /ping - Check bot latency
+ */
+const handlePing = async (interaction) => {
+  try {
+    const startTime = Date.now();
+    
+    const dbStart = Date.now();
+    await pool.query('SELECT NOW();');
+    const dbEnd = Date.now();
+    const dbPing = dbEnd - dbStart;
+    
+    const endTime = Date.now();
+    const wsPing = interaction.client.ws.ping;
+    const apiPing = endTime - startTime;
+    
+    const embed = pingEmbed({
+      wsPing,
+      apiPing,
+      dbPing
+    }, {
+      author: {
+        name: interaction.user.username,
+        iconURL: interaction.user.displayAvatarURL()
+      }
+    });
+    
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  } catch (error) {
+    console.error('Error in /ping:', error);
+    const embed = errorEmbed('Failed to ping. Please try again later.');
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  }
+};
+
+/**
+ * /help - Show available commands
+ */
+const handleHelp = async (interaction) => {
+  try {
+    const commandList = [
+      { name: 'balance', description: 'Check your crystal balance', usage: '/balance [user]' },
+      { name: 'leaderboard', description: 'View top crystal holders', usage: '/leaderboard [limit]' },
+      { name: 'invites', description: 'View invite stats', usage: '/invites [user]' },
+      { name: 'inviteleaderboard', description: 'View top inviters', usage: '/inviteleaderboard [limit]' },
+      { name: 'messages', description: 'View message stats', usage: '/messages [user]' },
+      { name: 'messageleaderboard', description: 'View top message senders', usage: '/messageleaderboard [period] [limit]' },
+      { name: 'ping', description: 'Check bot latency', usage: '/ping' },
+      { name: 'help', description: 'Show this help message', usage: '/help' },
+      { name: 'serverinfo', description: 'View server information', usage: '/serverinfo' },
+      { name: 'userinfo', description: 'View user information', usage: '/userinfo [user]' },
+      { name: 'avatar', description: 'View user avatar', usage: '/avatar [user]' },
+      { name: 'banner', description: 'View user banner', usage: '/banner [user]' },
+      { name: 'botinfo', description: 'View bot information', usage: '/botinfo' }
+    ];
+    
+    const embed = helpEmbed({
+      commands: commandList,
+      user: interaction.user.username,
+      categories: [
+        { name: '💎 Economy', commands: ['balance', 'leaderboard'] },
+        { name: '📊 Tracking', commands: ['invites', 'inviteleaderboard', 'messages', 'messageleaderboard'] },
+        { name: '🔧 Utility', commands: ['ping', 'help', 'serverinfo', 'userinfo', 'avatar', 'banner', 'botinfo'] }
+      ],
+      author: {
+        name: interaction.client.user.username,
+        iconURL: interaction.client.user.displayAvatarURL()
+      }
+    });
+    
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  } catch (error) {
+    console.error('Error in /help:', error);
+    const embed = errorEmbed('Failed to show help. Please try again later.');
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  }
+};
+
+/**
+ * /serverinfo - Show server information
+ */
+const handleServerInfo = async (interaction) => {
+  try {
+    const info = getServerInfo(interaction.guild);
+    
+    const embed = serverInfoEmbed(info, {
+      author: {
+        name: interaction.user.username,
+        iconURL: interaction.user.displayAvatarURL()
+      }
+    });
+    
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  } catch (error) {
+    console.error('Error in /serverinfo:', error);
+    const embed = errorEmbed('Failed to fetch server info.');
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  }
+};
+
+/**
+ * /userinfo - Show user information
+ */
+const handleUserInfo = async (interaction) => {
+  try {
+    const targetUser = interaction.options.getUser('user') || interaction.user;
+    const member = await interaction.guild.members.fetch(targetUser.id).catch(() => null);
+    
+    const info = getUserInfo(targetUser, member);
+    
+    const embed = userInfoEmbed(info, {
+      author: {
+        name: interaction.user.username,
+        iconURL: interaction.user.displayAvatarURL()
+      }
+    });
+    
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  } catch (error) {
+    console.error('Error in /userinfo:', error);
+    const embed = errorEmbed('Failed to fetch user info.');
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  }
+};
+
+/**
+ * /avatar - Show user avatar
+ */
+const handleAvatar = async (interaction) => {
+  try {
+    const targetUser = interaction.options.getUser('user') || interaction.user;
+    const avatarURL = targetUser.displayAvatarURL({ dynamic: true, size: 512 });
+    
+    const { embed, row } = avatarEmbed(targetUser, avatarURL, {
+      requestedBy: interaction.user.username,
+      author: {
+        name: interaction.user.username,
+        iconURL: interaction.user.displayAvatarURL()
+      }
+    });
+    
+    await interaction.reply({ embeds: [embed], components: [row], ephemeral: false });
+  } catch (error) {
+    console.error('Error in /avatar:', error);
+    const embed = errorEmbed('Failed to fetch avatar.');
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  }
+};
+
+/**
+ * /banner - Show user banner
+ */
+const handleBanner = async (interaction) => {
+  try {
+    const targetUser = interaction.options.getUser('user') || interaction.user;
+    const bannerURL = await getUserBanner(targetUser);
+    
+    const embed = bannerEmbed(targetUser, bannerURL, {
+      requestedBy: interaction.user.username,
+      author: {
+        name: interaction.user.username,
+        iconURL: interaction.user.displayAvatarURL()
+      }
+    });
+    
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  } catch (error) {
+    console.error('Error in /banner:', error);
+    const embed = errorEmbed('Failed to fetch banner.');
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  }
+};
+
+/**
+ * /botinfo - Show bot information
+ */
+const handleBotInfo = async (interaction) => {
+  try {
+    const info = getBotInfo(interaction.client);
+    
+    const embed = botInfoEmbed(info, {
+      author: {
+        name: interaction.user.username,
+        iconURL: interaction.user.displayAvatarURL()
+      }
+    });
+    
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  } catch (error) {
+    console.error('Error in /botinfo:', error);
+    const embed = errorEmbed('Failed to fetch bot info.');
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  }
+};
+
+// ================ SETWELCOME HANDLER ================
+
+/**
+ * /setwelcome - Configure welcome system
+ */
+const handleSetWelcome = async (interaction) => {
+  if (!interaction.memberPermissions.has('Administrator')) {
+    const embed = errorEmbed('You need **Administrator** permissions to use this command.');
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+    return;
+  }
+  
+  const channel = interaction.options.getChannel('channel');
+  const message = interaction.options.getString('message');
+  const title = interaction.options.getString('title');
+  const description = interaction.options.getString('description');
+  const color = interaction.options.getString('color');
+  const dmEnabled = interaction.options.getBoolean('dm_enabled');
+  const dmMessage = interaction.options.getString('dm_message');
+  const role = interaction.options.getRole('role');
+  const showCount = interaction.options.getBoolean('show_count');
+  const showAvatar = interaction.options.getBoolean('show_avatar');
+  
+  try {
+    const { getWelcomeSettings, updateWelcomeSettings } = require('./database.js');
+    const current = await getWelcomeSettings(interaction.guildId);
+    
+    const settings = {
+      enabled: true,
+      channel_id: channel?.id || current.channel_id,
+      message: message || current.message,
+      embed_title: title || current.embed_title,
+      embed_description: description || current.embed_description,
+      embed_color: color || current.embed_color || '#2ECC71',
+      dm_enabled: dmEnabled !== null ? dmEnabled : current.dm_enabled,
+      dm_message: dmMessage || current.dm_message,
+      role_on_join: role?.id || current.role_on_join,
+      show_member_count: showCount !== null ? showCount : current.show_member_count,
+      show_avatar: showAvatar !== null ? showAvatar : current.show_avatar
+    };
+    
+    await updateWelcomeSettings(interaction.guildId, settings);
+    
+    const embed = successEmbed('✅ Welcome System Configured', {
+      fields: [
+        { name: '📢 Channel', value: channel ? `<#${channel.id}>` : 'Not set', inline: true },
+        { name: '📊 Status', value: '✅ Enabled', inline: true },
+        { name: '📝 Message', value: message || current.message || 'Default welcome message', inline: false },
+        { name: '💬 DM Enabled', value: settings.dm_enabled ? '✅ Yes' : '❌ No', inline: true },
+        { name: '🎭 Auto Role', value: role ? `<@&${role.id}>` : 'None', inline: true }
+      ],
+      author: {
+        name: interaction.user.username,
+        iconURL: interaction.user.displayAvatarURL()
+      }
+    });
+    
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  } catch (error) {
+    console.error('Error in /setwelcome:', error);
+    const embed = errorEmbed(error.message || 'Failed to configure welcome system.');
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  }
+};
+
+/**
+ * /setleave - Configure leave system
+ */
+const handleSetLeave = async (interaction) => {
+  if (!interaction.memberPermissions.has('Administrator')) {
+    const embed = errorEmbed('You need **Administrator** permissions to use this command.');
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+    return;
+  }
+  
+  const channel = interaction.options.getChannel('channel');
+  const message = interaction.options.getString('message');
+  const title = interaction.options.getString('title');
+  const description = interaction.options.getString('description');
+  const color = interaction.options.getString('color');
+  const showCount = interaction.options.getBoolean('show_count');
+  const showAvatar = interaction.options.getBoolean('show_avatar');
+  
+  try {
+    const { getLeaveSettings, updateLeaveSettings } = require('./database.js');
+    const current = await getLeaveSettings(interaction.guildId);
+    
+    const settings = {
+      enabled: true,
+      channel_id: channel?.id || current.channel_id,
+      message: message || current.message,
+      embed_title: title || current.embed_title,
+      embed_description: description || current.embed_description,
+      embed_color: color || current.embed_color || '#E74C3C',
+      show_member_count: showCount !== null ? showCount : current.show_member_count,
+      show_avatar: showAvatar !== null ? showAvatar : current.show_avatar
+    };
+    
+    await updateLeaveSettings(interaction.guildId, settings);
+    
+    const embed = successEmbed('✅ Leave System Configured', {
+      fields: [
+        { name: '📢 Channel', value: channel ? `<#${channel.id}>` : 'Not set', inline: true },
+        { name: '📊 Status', value: '✅ Enabled', inline: true },
+        { name: '📝 Message', value: message || current.message || 'Default leave message', inline: false }
+      ],
+      author: {
+        name: interaction.user.username,
+        iconURL: interaction.user.displayAvatarURL()
+      }
+    });
+    
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  } catch (error) {
+    console.error('Error in /setleave:', error);
+    const embed = errorEmbed(error.message || 'Failed to configure leave system.');
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  }
+};
+
+/**
+ * /setlogchannel - Set logging channel
+ */
+const handleSetLogChannel = async (interaction) => {
+  if (!interaction.memberPermissions.has('Administrator')) {
+    const embed = errorEmbed('You need **Administrator** permissions to use this command.');
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+    return;
+  }
+  
+  const channel = interaction.options.getChannel('channel');
+  
+  try {
+    const settings = await setLogChannel(interaction.guildId, channel.id);
+    
+    const embed = logChannelEmbed(settings, {
+      author: {
+        name: interaction.user.username,
+        iconURL: interaction.user.displayAvatarURL()
+      }
+    });
+    
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  } catch (error) {
+    console.error('Error in /setlogchannel:', error);
+    const embed = errorEmbed(error.message || 'Failed to set log channel.');
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  }
+};
+
+// ================ TICKET COMMAND HANDLERS ================
+
+/**
+ * /claim - Claim a ticket
+ */
+const handleClaim = async (interaction) => {
+  const ticketId = interaction.options.getInteger('ticket_id');
+  
+  try {
+    const isManager = await hasTicketManagerRole(interaction.guild, interaction.user.id);
+    if (!isManager) {
+      const embed = ticketPermissionErrorEmbed({
+        author: {
+          name: interaction.user.username,
+          iconURL: interaction.user.displayAvatarURL()
+        }
+      });
+      await interaction.reply({ embeds: [embed], ephemeral: false });
+      return;
+    }
+    
+    const ticket = await getTicketById(ticketId);
+    if (!ticket) {
+      const embed = errorEmbed('Ticket not found.');
+      await interaction.reply({ embeds: [embed], ephemeral: false });
+      return;
+    }
+    
+    if (ticket.guild_id !== interaction.guildId) {
+      const embed = errorEmbed('This ticket does not belong to this server.');
+      await interaction.reply({ embeds: [embed], ephemeral: false });
+      return;
+    }
+    
+    const result = await claimTicketById(ticketId, interaction.user.id);
+    
+    const embed = ticketClaimEmbed(result, interaction.user, {
+      author: {
+        name: interaction.user.username,
+        iconURL: interaction.user.displayAvatarURL()
+      }
+    });
+    
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  } catch (error) {
+    console.error('Error in /claim:', error);
+    const embed = errorEmbed(error.message || 'Failed to claim ticket.');
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  }
+};
+
+/**
+ * /close - Close a ticket
+ */
+const handleClose = async (interaction) => {
+  const ticketId = interaction.options.getInteger('ticket_id');
+  const reason = interaction.options.getString('reason');
+  
+  try {
+    const isManager = await hasTicketManagerRole(interaction.guild, interaction.user.id);
+    if (!isManager) {
+      const embed = ticketPermissionErrorEmbed({
+        author: {
+          name: interaction.user.username,
+          iconURL: interaction.user.displayAvatarURL()
+        }
+      });
+      await interaction.reply({ embeds: [embed], ephemeral: false });
+      return;
+    }
+    
+    const ticket = await getTicketById(ticketId);
+    if (!ticket) {
+      const embed = errorEmbed('Ticket not found.');
+      await interaction.reply({ embeds: [embed], ephemeral: false });
+      return;
+    }
+    
+    if (ticket.guild_id !== interaction.guildId) {
+      const embed = errorEmbed('This ticket does not belong to this server.');
+      await interaction.reply({ embeds: [embed], ephemeral: false });
+      return;
+    }
+    
+    const result = await closeTicketById(ticketId, interaction.user.id, reason);
+    
+    const embed = ticketCloseEmbed(result, {
+      author: {
+        name: interaction.user.username,
+        iconURL: interaction.user.displayAvatarURL()
+      },
+      reason: reason
+    });
+    
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  } catch (error) {
+    console.error('Error in /close:', error);
+    const embed = errorEmbed(error.message || 'Failed to close ticket.');
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  }
+};
+
+/**
+ * /reopen - Reopen a closed ticket
+ */
+const handleReopen = async (interaction) => {
+  const ticketId = interaction.options.getInteger('ticket_id');
+  
+  try {
+    const isManager = await hasTicketManagerRole(interaction.guild, interaction.user.id);
+    if (!isManager) {
+      const embed = ticketPermissionErrorEmbed({
+        author: {
+          name: interaction.user.username,
+          iconURL: interaction.user.displayAvatarURL()
+        }
+      });
+      await interaction.reply({ embeds: [embed], ephemeral: false });
+      return;
+    }
+    
+    const ticket = await getTicketById(ticketId);
+    if (!ticket) {
+      const embed = errorEmbed('Ticket not found.');
+      await interaction.reply({ embeds: [embed], ephemeral: false });
+      return;
+    }
+    
+    if (ticket.guild_id !== interaction.guildId) {
+      const embed = errorEmbed('This ticket does not belong to this server.');
+      await interaction.reply({ embeds: [embed], ephemeral: false });
+      return;
+    }
+    
+    const result = await reopenTicketById(ticketId, interaction.user.id);
+    
+    const embed = ticketReopenEmbed(result, {
+      author: {
+        name: interaction.user.username,
+        iconURL: interaction.user.displayAvatarURL()
+      },
+      reopenedBy: interaction.user.id
+    });
+    
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  } catch (error) {
+    console.error('Error in /reopen:', error);
+    const embed = errorEmbed(error.message || 'Failed to reopen ticket.');
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  }
+};
+
+/**
+ * /delete - Delete a ticket (with transcript)
+ */
+const handleDelete = async (interaction) => {
+  const ticketId = interaction.options.getInteger('ticket_id');
+  
+  try {
+    const isManager = await hasTicketManagerRole(interaction.guild, interaction.user.id);
+    if (!isManager) {
+      const embed = ticketPermissionErrorEmbed({
+        author: {
+          name: interaction.user.username,
+          iconURL: interaction.user.displayAvatarURL()
+        }
+      });
+      await interaction.reply({ embeds: [embed], ephemeral: false });
+      return;
+    }
+    
+    const ticket = await getTicketById(ticketId);
+    if (!ticket) {
+      const embed = errorEmbed('Ticket not found.');
+      await interaction.reply({ embeds: [embed], ephemeral: false });
+      return;
+    }
+    
+    if (ticket.guild_id !== interaction.guildId) {
+      const embed = errorEmbed('This ticket does not belong to this server.');
+      await interaction.reply({ embeds: [embed], ephemeral: false });
+      return;
+    }
+    
+    const result = await deleteTicketById(ticketId, interaction.user.id, interaction.channelId);
+    
+    const embed = ticketDeleteEmbed(result, {
+      author: {
+        name: interaction.user.username,
+        iconURL: interaction.user.displayAvatarURL()
+      },
+      transcript: result.transcript
+    });
+    
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  } catch (error) {
+    console.error('Error in /delete:', error);
+    const embed = errorEmbed(error.message || 'Failed to delete ticket.');
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  }
+};
+
+/**
+ * /rename - Rename a ticket channel
+ */
+const handleRename = async (interaction) => {
+  const ticketId = interaction.options.getInteger('ticket_id');
+  const newName = interaction.options.getString('name');
+  
+  try {
+    const isManager = await hasTicketManagerRole(interaction.guild, interaction.user.id);
+    if (!isManager) {
+      const embed = ticketPermissionErrorEmbed({
+        author: {
+          name: interaction.user.username,
+          iconURL: interaction.user.displayAvatarURL()
+        }
+      });
+      await interaction.reply({ embeds: [embed], ephemeral: false });
+      return;
+    }
+    
+    const ticket = await getTicketById(ticketId);
+    if (!ticket) {
+      const embed = errorEmbed('Ticket not found.');
+      await interaction.reply({ embeds: [embed], ephemeral: false });
+      return;
+    }
+    
+    if (ticket.guild_id !== interaction.guildId) {
+      const embed = errorEmbed('This ticket does not belong to this server.');
+      await interaction.reply({ embeds: [embed], ephemeral: false });
+      return;
+    }
+    
+    const channel = await interaction.guild.channels.fetch(ticket.channel_id);
+    if (!channel) {
+      const embed = errorEmbed('Ticket channel not found.');
+      await interaction.reply({ embeds: [embed], ephemeral: false });
+      return;
+    }
+    
+    const result = await renameTicketChannel(ticketId, interaction.user.id, newName, channel);
+    
+    const embed = ticketRenameEmbed(result, newName, {
+      author: {
+        name: interaction.user.username,
+        iconURL: interaction.user.displayAvatarURL()
+      },
+      renamedBy: interaction.user.id
+    });
+    
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  } catch (error) {
+    console.error('Error in /rename:', error);
+    const embed = errorEmbed(error.message || 'Failed to rename ticket channel.');
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  }
+};
+
+/**
+ * /adduser - Add a user to a ticket
+ */
+const handleAddUser = async (interaction) => {
+  const ticketId = interaction.options.getInteger('ticket_id');
+  const targetUser = interaction.options.getUser('user');
+  
+  try {
+    const isManager = await hasTicketManagerRole(interaction.guild, interaction.user.id);
+    if (!isManager) {
+      const embed = ticketPermissionErrorEmbed({
+        author: {
+          name: interaction.user.username,
+          iconURL: interaction.user.displayAvatarURL()
+        }
+      });
+      await interaction.reply({ embeds: [embed], ephemeral: false });
+      return;
+    }
+    
+    const ticket = await getTicketById(ticketId);
+    if (!ticket) {
+      const embed = errorEmbed('Ticket not found.');
+      await interaction.reply({ embeds: [embed], ephemeral: false });
+      return;
+    }
+    
+    if (ticket.guild_id !== interaction.guildId) {
+      const embed = errorEmbed('This ticket does not belong to this server.');
+      await interaction.reply({ embeds: [embed], ephemeral: false });
+      return;
+    }
+    
+    const channel = await interaction.guild.channels.fetch(ticket.channel_id);
+    if (!channel) {
+      const embed = errorEmbed('Ticket channel not found.');
+      await interaction.reply({ embeds: [embed], ephemeral: false });
+      return;
+    }
+    
+    const result = await addUserToTicket(ticketId, interaction.user.id, targetUser.id, channel);
+    
+    const embed = ticketUserAddEmbed(result, targetUser.id, {
+      author: {
+        name: interaction.user.username,
+        iconURL: interaction.user.displayAvatarURL()
+      },
+      addedBy: interaction.user.id
+    });
+    
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  } catch (error) {
+    console.error('Error in /adduser:', error);
+    const embed = errorEmbed(error.message || 'Failed to add user to ticket.');
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  }
+};
+
+/**
+ * /removeuser - Remove a user from a ticket
+ */
+const handleRemoveUser = async (interaction) => {
+  const ticketId = interaction.options.getInteger('ticket_id');
+  const targetUser = interaction.options.getUser('user');
+  
+  try {
+    const isManager = await hasTicketManagerRole(interaction.guild, interaction.user.id);
+    if (!isManager) {
+      const embed = ticketPermissionErrorEmbed({
+        author: {
+          name: interaction.user.username,
+          iconURL: interaction.user.displayAvatarURL()
+        }
+      });
+      await interaction.reply({ embeds: [embed], ephemeral: false });
+      return;
+    }
+    
+    const ticket = await getTicketById(ticketId);
+    if (!ticket) {
+      const embed = errorEmbed('Ticket not found.');
+      await interaction.reply({ embeds: [embed], ephemeral: false });
+      return;
+    }
+    
+    if (ticket.guild_id !== interaction.guildId) {
+      const embed = errorEmbed('This ticket does not belong to this server.');
+      await interaction.reply({ embeds: [embed], ephemeral: false });
+      return;
+    }
+    
+    const channel = await interaction.guild.channels.fetch(ticket.channel_id);
+    if (!channel) {
+      const embed = errorEmbed('Ticket channel not found.');
+      await interaction.reply({ embeds: [embed], ephemeral: false });
+      return;
+    }
+    
+    const result = await removeUserFromTicket(ticketId, interaction.user.id, targetUser.id, channel);
+    
+    const embed = ticketUserRemoveEmbed(result, targetUser.id, {
+      author: {
+        name: interaction.user.username,
+        iconURL: interaction.user.displayAvatarURL()
+      },
+      removedBy: interaction.user.id
+    });
+    
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  } catch (error) {
+    console.error('Error in /removeuser:', error);
+    const embed = errorEmbed(error.message || 'Failed to remove user from ticket.');
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  }
+};
+
+/**
+ * /transcript - Generate a ticket transcript
+ */
+const handleTranscript = async (interaction) => {
+  const ticketId = interaction.options.getInteger('ticket_id');
+  
+  try {
+    const isManager = await hasTicketManagerRole(interaction.guild, interaction.user.id);
+    if (!isManager) {
+      const embed = ticketPermissionErrorEmbed({
+        author: {
+          name: interaction.user.username,
+          iconURL: interaction.user.displayAvatarURL()
+        }
+      });
+      await interaction.reply({ embeds: [embed], ephemeral: false });
+      return;
+    }
+    
+    const ticket = await getTicketById(ticketId);
+    if (!ticket) {
+      const embed = errorEmbed('Ticket not found.');
+      await interaction.reply({ embeds: [embed], ephemeral: false });
+      return;
+    }
+    
+    if (ticket.guild_id !== interaction.guildId) {
+      const embed = errorEmbed('This ticket does not belong to this server.');
+      await interaction.reply({ embeds: [embed], ephemeral: false });
+      return;
+    }
+    
+    const transcript = await generateTranscript(ticketId, interaction.channelId, interaction.user.id);
+    
+    const embed = ticketTranscriptEmbed(transcript, {
+      author: {
+        name: interaction.user.username,
+        iconURL: interaction.user.displayAvatarURL()
+      }
+    });
+    
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  } catch (error) {
+    console.error('Error in /transcript:', error);
+    const embed = errorEmbed(error.message || 'Failed to generate transcript.');
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  }
+};
+
+// ================ MODERATION COMMAND HANDLERS ================
+
+/**
+ * /ban - Ban a user
+ */
+const handleBan = async (interaction) => {
+  const targetUser = interaction.options.getUser('user');
+  const reason = interaction.options.getString('reason') || 'No reason provided';
+  const deleteDays = interaction.options.getInteger('delete_days') || 0;
+  
+  try {
+    if (!interaction.memberPermissions.has('BanMembers')) {
+      const embed = permissionErrorEmbed('You do not have permission to ban members.');
+      await interaction.reply({ embeds: [embed], ephemeral: false });
+      return;
+    }
+    
+    const result = await banUser(interaction.guild, interaction.user.id, targetUser.id, reason, deleteDays);
+    
+    const embed = banEmbed(result, {
+      author: {
+        name: interaction.user.username,
+        iconURL: interaction.user.displayAvatarURL()
+      }
+    });
+    
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  } catch (error) {
+    console.error('Error in /ban:', error);
+    const embed = errorEmbed(error.message || 'Failed to ban user.');
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  }
+};
+
+/**
+ * /kick - Kick a user
+ */
+const handleKick = async (interaction) => {
+  const targetUser = interaction.options.getUser('user');
+  const reason = interaction.options.getString('reason') || 'No reason provided';
+  
+  try {
+    if (!interaction.memberPermissions.has('KickMembers')) {
+      const embed = permissionErrorEmbed('You do not have permission to kick members.');
+      await interaction.reply({ embeds: [embed], ephemeral: false });
+      return;
+    }
+    
+    const result = await kickUser(interaction.guild, interaction.user.id, targetUser.id, reason);
+    
+    const embed = kickEmbed(result, {
+      author: {
+        name: interaction.user.username,
+        iconURL: interaction.user.displayAvatarURL()
+      }
+    });
+    
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  } catch (error) {
+    console.error('Error in /kick:', error);
+    const embed = errorEmbed(error.message || 'Failed to kick user.');
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  }
+};
+
+/**
+ * /timeout - Timeout a user
+ */
+const handleTimeout = async (interaction) => {
+  const targetUser = interaction.options.getUser('user');
+  const duration = interaction.options.getInteger('duration');
+  const reason = interaction.options.getString('reason') || 'No reason provided';
+  
+  try {
+    if (!interaction.memberPermissions.has('ModerateMembers')) {
+      const embed = permissionErrorEmbed('You do not have permission to timeout members.');
+      await interaction.reply({ embeds: [embed], ephemeral: false });
+      return;
+    }
+    
+    const result = await timeoutUser(interaction.guild, interaction.user.id, targetUser.id, duration * 60000, reason);
+    
+    const embed = timeoutEmbed(result, {
+      author: {
+        name: interaction.user.username,
+        iconURL: interaction.user.displayAvatarURL()
+      }
+    });
+    
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  } catch (error) {
+    console.error('Error in /timeout:', error);
+    const embed = errorEmbed(error.message || 'Failed to timeout user.');
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  }
+};
+
+/**
+ * /untimeout - Remove timeout from a user
+ */
+const handleUntimeout = async (interaction) => {
+  const targetUser = interaction.options.getUser('user');
+  const reason = interaction.options.getString('reason') || 'No reason provided';
+  
+  try {
+    if (!interaction.memberPermissions.has('ModerateMembers')) {
+      const embed = permissionErrorEmbed('You do not have permission to remove timeouts.');
+      await interaction.reply({ embeds: [embed], ephemeral: false });
+      return;
+    }
+    
+    const result = await untimeoutUser(interaction.guild, interaction.user.id, targetUser.id, reason);
+    
+    const embed = untimeoutEmbed(result, {
+      author: {
+        name: interaction.user.username,
+        iconURL: interaction.user.displayAvatarURL()
+      }
+    });
+    
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  } catch (error) {
+    console.error('Error in /untimeout:', error);
+    const embed = errorEmbed(error.message || 'Failed to remove timeout.');
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  }
+};
+
+/**
+ * /purge - Purge messages
+ */
+const handlePurge = async (interaction) => {
+  const amount = interaction.options.getInteger('amount');
+  const targetUser = interaction.options.getUser('user');
+  const reason = interaction.options.getString('reason') || 'No reason provided';
+  
+  try {
+    if (!interaction.memberPermissions.has('ManageMessages')) {
+      const embed = permissionErrorEmbed('You do not have permission to manage messages.');
+      await interaction.reply({ embeds: [embed], ephemeral: false });
+      return;
+    }
+    
+    const result = await purgeMessages(interaction.channel, interaction.user.id, amount, reason, targetUser ? targetUser.id : null);
+    
+    const embed = purgeEmbed(result, {
+      author: {
+        name: interaction.user.username,
+        iconURL: interaction.user.displayAvatarURL()
+      },
+      reason: reason
+    });
+    
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  } catch (error) {
+    console.error('Error in /purge:', error);
+    const embed = errorEmbed(error.message || 'Failed to purge messages.');
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  }
+};
+
+/**
+ * /warn - Warn a user
+ */
+const handleWarn = async (interaction) => {
+  const targetUser = interaction.options.getUser('user');
+  const reason = interaction.options.getString('reason') || 'No reason provided';
+  const points = interaction.options.getInteger('points') || 1;
+  
+  try {
+    if (!interaction.memberPermissions.has('ModerateMembers')) {
+      const embed = permissionErrorEmbed('You do not have permission to warn members.');
+      await interaction.reply({ embeds: [embed], ephemeral: false });
+      return;
+    }
+    
+    const result = await warnUser(interaction.guild, interaction.user.id, targetUser.id, reason, points);
+    
+    const embed = warnEmbed(result, {
+      author: {
+        name: interaction.user.username,
+        iconURL: interaction.user.displayAvatarURL()
+      }
+    });
+    
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  } catch (error) {
+    console.error('Error in /warn:', error);
+    const embed = errorEmbed(error.message || 'Failed to warn user.');
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  }
+};
+
+/**
+ * /warnings - View warnings for a user
+ */
+const handleWarnings = async (interaction) => {
+  const targetUser = interaction.options.getUser('user');
+  
+  try {
+    if (!interaction.memberPermissions.has('ModerateMembers')) {
+      const embed = permissionErrorEmbed('You do not have permission to view warnings.');
+      await interaction.reply({ embeds: [embed], ephemeral: false });
+      return;
+    }
+    
+    const data = await getUserWarnings(targetUser.id, interaction.guildId);
+    
+    const embed = warningsListEmbed(data, targetUser, {
+      author: {
+        name: interaction.user.username,
+        iconURL: interaction.user.displayAvatarURL()
+      },
+      thumbnail: targetUser.displayAvatarURL()
+    });
+    
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  } catch (error) {
+    console.error('Error in /warnings:', error);
+    const embed = errorEmbed(error.message || 'Failed to fetch warnings.');
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  }
+};
+
+/**
+ * /clearwarnings - Clear all warnings for a user
+ */
+const handleClearWarnings = async (interaction) => {
+  const targetUser = interaction.options.getUser('user');
+  
+  try {
+    if (!interaction.memberPermissions.has('ModerateMembers')) {
+      const embed = permissionErrorEmbed('You do not have permission to clear warnings.');
+      await interaction.reply({ embeds: [embed], ephemeral: false });
+      return;
+    }
+    
+    const result = await clearAllWarnings(targetUser.id, interaction.guildId, interaction.user.id);
+    
+    const embed = clearWarningsEmbed(result, {
+      author: {
+        name: interaction.user.username,
+        iconURL: interaction.user.displayAvatarURL()
+      }
+    });
+    
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  } catch (error) {
+    console.error('Error in /clearwarnings:', error);
+    const embed = errorEmbed(error.message || 'Failed to clear warnings.');
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  }
+};
+
+// ================ SHOP COMMAND HANDLERS ================
+
+/**
+ * /additem - Add a shop item
+ */
+const handleAddItem = async (interaction) => {
+  if (!interaction.memberPermissions.has('Administrator')) {
+    const embed = errorEmbed('You need **Administrator** permissions to use this command.');
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+    return;
+  }
+  
+  const name = interaction.options.getString('name');
+  const price = interaction.options.getInteger('price');
+  const description = interaction.options.getString('description');
+  const stock = interaction.options.getInteger('stock') || -1;
+  const category = interaction.options.getString('category');
+  const imageUrl = interaction.options.getString('image');
+  const roleId = interaction.options.getString('role');
+  const isLimited = interaction.options.getBoolean('limited') || false;
+  const limitPerUser = interaction.options.getInteger('limit_per_user') || 1;
+  
+  try {
+    const result = await createShopItemCommand(interaction.guildId, {
+      name, price, description, stock, category, imageUrl, roleId, isLimited, limitPerUser
+    });
+    
+    const embed = shopAddItemEmbed(result.item, {
+      author: {
+        name: interaction.user.username,
+        iconURL: interaction.user.displayAvatarURL()
+      }
+    });
+    
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  } catch (error) {
+    console.error('Error in /additem:', error);
+    const embed = errorEmbed(error.message || 'Failed to add item.');
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  }
+};
+
+/**
+ * /edititem - Edit a shop item
+ */
+const handleEditItem = async (interaction) => {
+  if (!interaction.memberPermissions.has('Administrator')) {
+    const embed = errorEmbed('You need **Administrator** permissions to use this command.');
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+    return;
+  }
+  
+  const itemId = interaction.options.getInteger('item_id');
+  const name = interaction.options.getString('name');
+  const price = interaction.options.getInteger('price');
+  const description = interaction.options.getString('description');
+  const stock = interaction.options.getInteger('stock');
+  const category = interaction.options.getString('category');
+  const imageUrl = interaction.options.getString('image');
+  const roleId = interaction.options.getString('role');
+  const isLimited = interaction.options.getBoolean('limited');
+  const limitPerUser = interaction.options.getInteger('limit_per_user');
+  
+  try {
+    const updateData = {};
+    if (name !== null) updateData.name = name;
+    if (price !== null) updateData.price = price;
+    if (description !== null) updateData.description = description;
+    if (stock !== null) updateData.stock = stock;
+    if (category !== null) updateData.category = category;
+    if (imageUrl !== null) updateData.image_url = imageUrl;
+    if (roleId !== null) updateData.role_id = roleId;
+    if (isLimited !== null) updateData.is_limited = isLimited;
+    if (limitPerUser !== null) updateData.limit_per_user = limitPerUser;
+    
+    const result = await editShopItemCommand(itemId, interaction.guildId, updateData);
+    
+    const embed = shopEditItemEmbed(result.item, updateData, {
+      author: {
+        name: interaction.user.username,
+        iconURL: interaction.user.displayAvatarURL()
+      }
+    });
+    
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  } catch (error) {
+    console.error('Error in /edititem:', error);
+    const embed = errorEmbed(error.message || 'Failed to edit item.');
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  }
+};
+
+/**
+ * /removeitem - Remove a shop item
+ */
+const handleRemoveItem = async (interaction) => {
+  if (!interaction.memberPermissions.has('Administrator')) {
+    const embed = errorEmbed('You need **Administrator** permissions to use this command.');
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+    return;
+  }
+  
+  const itemId = interaction.options.getInteger('item_id');
+  
+  try {
+    const result = await deleteShopItemCommand(itemId, interaction.guildId);
+    
+    const embed = shopRemoveItemEmbed(result.item, {
+      author: {
+        name: interaction.user.username,
+        iconURL: interaction.user.displayAvatarURL()
+      }
+    });
+    
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  } catch (error) {
+    console.error('Error in /removeitem:', error);
+    const embed = errorEmbed(error.message || 'Failed to remove item.');
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  }
+};
+
+/**
+ * /restock - Restock a shop item
+ */
+const handleRestock = async (interaction) => {
+  if (!interaction.memberPermissions.has('Administrator')) {
+    const embed = errorEmbed('You need **Administrator** permissions to use this command.');
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+    return;
+  }
+  
+  const itemId = interaction.options.getInteger('item_id');
+  const amount = interaction.options.getInteger('amount');
+  
+  try {
+    const result = await restockShopItem(itemId, interaction.guildId, amount);
+    
+    const embed = shopRestockEmbed(result.item, amount, {
+      author: {
+        name: interaction.user.username,
+        iconURL: interaction.user.displayAvatarURL()
+      }
+    });
+    
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  } catch (error) {
+    console.error('Error in /restock:', error);
+    const embed = errorEmbed(error.message || 'Failed to restock item.');
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  }
+};
+
+/**
+ * /shoplist - View all shop items
+ */
+const handleShopList = async (interaction) => {
+  try {
+    const includeInactive = interaction.options.getBoolean('inactive') || false;
+    const shopData = await getFullShopList(interaction.guildId, includeInactive);
+    
+    const embed = shopListEmbed(shopData, {
+      author: {
+        name: interaction.user.username,
+        iconURL: interaction.user.displayAvatarURL()
+      }
+    });
+    
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  } catch (error) {
+    console.error('Error in /shoplist:', error);
+    const embed = errorEmbed('Failed to fetch shop list.');
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  }
+};
+
+// ================ SELL COMMAND HANDLERS ================
+
+/**
+ * /createsellpanel - Create a sell panel
+ */
+const handleCreateSellPanel = async (interaction) => {
+  if (!interaction.memberPermissions.has('Administrator')) {
+    const embed = errorEmbed('You need **Administrator** permissions to use this command.');
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+    return;
+  }
+  
+  const title = interaction.options.getString('title');
+  const description = interaction.options.getString('description');
+  const channel = interaction.options.getChannel('channel');
+  const color = interaction.options.getString('color') || '#F39C12';
+  const thumbnail = interaction.options.getString('thumbnail');
+  const requireApproval = interaction.options.getBoolean('require_approval') ?? true;
+  const autoDelete = interaction.options.getBoolean('auto_delete') || false;
+  
+  try {
+    const result = await createSellPanelCommand(interaction.guildId, channel.id, {
+      title, description, color, thumbnailUrl: thumbnail, requireApproval, autoDelete
+    });
+    
+    const embed = sellPanelCreateEmbed(result.panel, {
+      author: {
+        name: interaction.user.username,
+        iconURL: interaction.user.displayAvatarURL()
+      },
+      thumbnail: thumbnail || null
+    });
+    
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  } catch (error) {
+    console.error('Error in /createsellpanel:', error);
+    const embed = errorEmbed(error.message || 'Failed to create sell panel.');
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  }
+};
+
+/**
+ * /editsellpanel - Edit a sell panel
+ */
+const handleEditSellPanel = async (interaction) => {
+  if (!interaction.memberPermissions.has('Administrator')) {
+    const embed = errorEmbed('You need **Administrator** permissions to use this command.');
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+    return;
+  }
+  
+  const panelId = interaction.options.getInteger('panel_id');
+  const title = interaction.options.getString('title');
+  const description = interaction.options.getString('description');
+  const channel = interaction.options.getChannel('channel');
+  const color = interaction.options.getString('color');
+  const thumbnail = interaction.options.getString('thumbnail');
+  const requireApproval = interaction.options.getBoolean('require_approval');
+  const autoDelete = interaction.options.getBoolean('auto_delete');
+  
+  try {
+    const updateData = {};
+    if (title !== null) updateData.title = title;
+    if (description !== null) updateData.description = description;
+    if (channel !== null) updateData.channel_id = channel.id;
+    if (color !== null) updateData.color = color;
+    if (thumbnail !== null) updateData.thumbnail_url = thumbnail;
+    if (requireApproval !== null) updateData.require_approval = requireApproval;
+    if (autoDelete !== null) updateData.auto_delete = autoDelete;
+    
+    const result = await editSellPanelCommand(panelId, interaction.guildId, updateData);
+    
+    const embed = sellPanelEditEmbed(result.panel, updateData, {
+      author: {
+        name: interaction.user.username,
+        iconURL: interaction.user.displayAvatarURL()
+      }
+    });
+    
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  } catch (error) {
+    console.error('Error in /editsellpanel:', error);
+    const embed = errorEmbed(error.message || 'Failed to edit sell panel.');
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  }
+};
+
+/**
+ * /deletesellpanel - Delete a sell panel
+ */
+const handleDeleteSellPanel = async (interaction) => {
+  if (!interaction.memberPermissions.has('Administrator')) {
+    const embed = errorEmbed('You need **Administrator** permissions to use this command.');
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+    return;
+  }
+  
+  const panelId = interaction.options.getInteger('panel_id');
+  
+  try {
+    const result = await deleteSellPanelCommand(panelId, interaction.guildId);
+    
+    const embed = sellPanelDeleteEmbed(result.panel, {
+      author: {
+        name: interaction.user.username,
+        iconURL: interaction.user.displayAvatarURL()
+      }
+    });
+    
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  } catch (error) {
+    console.error('Error in /deletesellpanel:', error);
+    const embed = errorEmbed(error.message || 'Failed to delete sell panel.');
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  }
+};
+
+// ================ AUTOMOD COMMAND HANDLERS ================
+
+/**
+ * /automod enable - Enable AutoMod
+ */
+const handleAutoModEnable = async (interaction) => {
+  if (!interaction.memberPermissions.has('Administrator')) {
+    const embed = errorEmbed('You need **Administrator** permissions to use this command.');
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+    return;
+  }
+  
+  try {
+    await enableAutoMod(interaction.guildId);
+    
+    const embed = successEmbed('✅ AutoMod Enabled', {
+      fields: [
+        { name: '📊 Status', value: '🟢 Enabled', inline: true },
+        { name: '🛡️ Protection', value: 'Active', inline: true }
+      ],
+      author: {
+        name: interaction.user.username,
+        iconURL: interaction.user.displayAvatarURL()
+      }
+    });
+    
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  } catch (error) {
+    console.error('Error in /automod enable:', error);
+    const embed = errorEmbed(error.message || 'Failed to enable AutoMod.');
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  }
+};
+
+/**
+ * /automod disable - Disable AutoMod
+ */
+const handleAutoModDisable = async (interaction) => {
+  if (!interaction.memberPermissions.has('Administrator')) {
+    const embed = errorEmbed('You need **Administrator** permissions to use this command.');
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+    return;
+  }
+  
+  try {
+    await disableAutoMod(interaction.guildId);
+    
+    const embed = successEmbed('✅ AutoMod Disabled', {
+      fields: [
+        { name: '📊 Status', value: '🔴 Disabled', inline: true },
+        { name: '🛡️ Protection', value: 'Inactive', inline: true }
+      ],
+      author: {
+        name: interaction.user.username,
+        iconURL: interaction.user.displayAvatarURL()
+      }
+    });
+    
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  } catch (error) {
+    console.error('Error in /automod disable:', error);
+    const embed = errorEmbed(error.message || 'Failed to disable AutoMod.');
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  }
+};
+
+/**
+ * /automod settings - Configure AutoMod
+ */
+const handleAutoModSettings = async (interaction) => {
+  if (!interaction.memberPermissions.has('Administrator')) {
+    const embed = errorEmbed('You need **Administrator** permissions to use this command.');
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+    return;
+  }
+  
+  const antiSpam = interaction.options.getBoolean('anti_spam');
+  const antiInvite = interaction.options.getBoolean('anti_invite');
+  const antiBadWords = interaction.options.getBoolean('anti_bad_words');
+  const antiMentionSpam = interaction.options.getBoolean('anti_mention_spam');
+  const antiDuplicate = interaction.options.getBoolean('anti_duplicate');
+  const antiLinkSpam = interaction.options.getBoolean('anti_link_spam');
+  const spamThreshold = interaction.options.getInteger('spam_threshold');
+  const spamWindow = interaction.options.getInteger('spam_window');
+  const mentionThreshold = interaction.options.getInteger('mention_threshold');
+  const actionType = interaction.options.getString('action_type');
+  const timeoutDuration = interaction.options.getInteger('timeout_duration');
+  const logChannel = interaction.options.getChannel('log_channel');
+  
+  try {
+    const settings = {};
+    if (antiSpam !== null) settings.anti_spam = antiSpam;
+    if (antiInvite !== null) settings.anti_invite = antiInvite;
+    if (antiBadWords !== null) settings.anti_bad_words = antiBadWords;
+    if (antiMentionSpam !== null) settings.anti_mention_spam = antiMentionSpam;
+    if (antiDuplicate !== null) settings.anti_duplicate = antiDuplicate;
+    if (antiLinkSpam !== null) settings.anti_link_spam = antiLinkSpam;
+    if (spamThreshold !== null) settings.spam_threshold = spamThreshold;
+    if (spamWindow !== null) settings.spam_window = spamWindow;
+    if (mentionThreshold !== null) settings.mention_threshold = mentionThreshold;
+    if (actionType !== null) settings.action_type = actionType;
+    if (timeoutDuration !== null) settings.timeout_duration = timeoutDuration;
+    if (logChannel !== null) settings.log_channel = logChannel.id;
+    
+    await updateAutoModConfig(interaction.guildId, settings);
+    
+    const updatedSettings = await getAutoModConfig(interaction.guildId);
+    
+    const embed = successEmbed('✅ AutoMod Settings Updated', {
+      fields: [
+        { name: '🛡️ Anti-Spam', value: updatedSettings.anti_spam ? '✅' : '❌', inline: true },
+        { name: '🚫 Anti-Invite', value: updatedSettings.anti_invite ? '✅' : '❌', inline: true },
+        { name: '📝 Anti-Bad Words', value: updatedSettings.anti_bad_words ? '✅' : '❌', inline: true },
+        { name: '👥 Anti-Mention Spam', value: updatedSettings.anti_mention_spam ? '✅' : '❌', inline: true },
+        { name: '🔄 Anti-Duplicate', value: updatedSettings.anti_duplicate ? '✅' : '❌', inline: true },
+        { name: '🔗 Anti-Link Spam', value: updatedSettings.anti_link_spam ? '✅' : '❌', inline: true },
+        { name: '📊 Spam Threshold', value: `${updatedSettings.spam_threshold} in ${updatedSettings.spam_window}s`, inline: true },
+        { name: '👥 Mention Threshold', value: `${updatedSettings.mention_threshold}`, inline: true },
+        { name: '⚡ Action Type', value: updatedSettings.action_type.toUpperCase(), inline: true },
+        { name: '⏱️ Timeout Duration', value: `${updatedSettings.timeout_duration} minutes`, inline: true },
+        { name: '📢 Log Channel', value: updatedSettings.log_channel ? `<#${updatedSettings.log_channel}>` : 'Not set', inline: true }
+      ],
+      author: {
+        name: interaction.user.username,
+        iconURL: interaction.user.displayAvatarURL()
+      }
+    });
+    
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  } catch (error) {
+    console.error('Error in /automod settings:', error);
+    const embed = errorEmbed(error.message || 'Failed to update AutoMod settings.');
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  }
+};
+
+// ================ BACKUP COMMAND HANDLERS ================
+
+/**
+ * /backup - Create a full backup
+ */
+const handleBackup = async (interaction) => {
+  if (!interaction.memberPermissions.has('Administrator')) {
+    const embed = backupErrorEmbed({ message: 'You need **Administrator** permissions to use this command.' }, {
+      author: {
+        name: interaction.user.username,
+        iconURL: interaction.user.displayAvatarURL()
+      }
+    });
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+    return;
+  }
+  
+  try {
+    await interaction.deferReply({ ephemeral: false });
+    
+    const result = await createFullBackup(interaction.guildId, interaction.user.id);
+    
+    const embed = backupCreatedEmbed(result, {
+      author: {
+        name: interaction.user.username,
+        iconURL: interaction.user.displayAvatarURL()
+      }
+    });
+    
+    await interaction.editReply({ embeds: [embed] });
+  } catch (error) {
+    console.error('Error in /backup:', error);
+    const embed = backupErrorEmbed({ message: error.message || 'Failed to create backup.' }, {
+      author: {
+        name: interaction.user.username,
+        iconURL: interaction.user.displayAvatarURL()
+      }
+    });
+    await interaction.editReply({ embeds: [embed] });
+  }
+};
+
+/**
+ * /restore - Restore from a backup
+ */
+const handleRestore = async (interaction) => {
+  if (!interaction.memberPermissions.has('Administrator')) {
+    const embed = backupErrorEmbed({ message: 'You need **Administrator** permissions to use this command.' }, {
+      author: {
+        name: interaction.user.username,
+        iconURL: interaction.user.displayAvatarURL()
+      }
+    });
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+    return;
+  }
+  
+  const backupCode = interaction.options.getString('code');
+  
+  try {
+    await interaction.deferReply({ ephemeral: false });
+    
+    if (!isValidBackupCode(backupCode)) {
+      const embed = backupErrorEmbed({ message: 'Invalid backup code format. Use the code provided when creating the backup.' }, {
+        author: {
+          name: interaction.user.username,
+          iconURL: interaction.user.displayAvatarURL()
+        }
+      });
+      await interaction.editReply({ embeds: [embed] });
+      return;
+    }
+    
+    const details = await getBackupDetails(backupCode);
+    
+    if (!details || !details.backup) {
+      const embed = backupErrorEmbed({ message: 'Backup not found. Please check the code and try again.' }, {
+        author: {
+          name: interaction.user.username,
+          iconURL: interaction.user.displayAvatarURL()
+        }
+      });
+      await interaction.editReply({ embeds: [embed] });
+      return;
+    }
+    
+    if (details.backup.guild_id !== interaction.guildId) {
+      const embed = backupErrorEmbed({ message: 'This backup belongs to a different server.' }, {
+        author: {
+          name: interaction.user.username,
+          iconURL: interaction.user.displayAvatarURL()
+        }
+      });
+      await interaction.editReply({ embeds: [embed] });
+      return;
+    }
+    
+    const confirmEmbed = backupConfirmRestoreEmbed(details.backup, {
+      author: {
+        name: interaction.user.username,
+        iconURL: interaction.user.displayAvatarURL()
+      }
+    });
+    
+    const row = new ActionRowBuilder()
+      .addComponents(
+        new ButtonBuilder()
+          .setCustomId('confirm_restore')
+          .setLabel('✅ Confirm Restore')
+          .setStyle(ButtonStyle.Danger),
+        new ButtonBuilder()
+          .setCustomId('cancel_restore')
+          .setLabel('❌ Cancel')
+          .setStyle(ButtonStyle.Secondary)
+      );
+    
+    const message = await interaction.editReply({
+      embeds: [confirmEmbed],
+      components: [row]
+    });
+    
+    const collector = message.createMessageComponentCollector({
+      componentType: ComponentType.Button,
+      time: 60000,
+      max: 1
+    });
+    
+    collector.on('collect', async (i) => {
+      if (i.user.id !== interaction.user.id) {
+        await i.reply({ content: '❌ These buttons are not for you!', ephemeral: true });
+        return;
+      }
+      
+      if (i.customId === 'confirm_restore') {
+        await i.update({ embeds: [infoEmbed('⏳ Restoring backup... Please wait.')], components: [] });
+        
+        try {
+          const result = await restoreFromBackup(backupCode, interaction.guildId, interaction.user.id);
+          
+          const embed = backupRestoredEmbed(result, {
+            author: {
+              name: interaction.user.username,
+              iconURL: interaction.user.displayAvatarURL()
+            }
+          });
+          
+          await i.editReply({ embeds: [embed], components: [] });
+        } catch (error) {
+          console.error('Error in restore:', error);
+          const embed = backupErrorEmbed({ message: error.message || 'Failed to restore backup.' }, {
+            author: {
+              name: interaction.user.username,
+              iconURL: interaction.user.displayAvatarURL()
+            }
+          });
+          await i.editReply({ embeds: [embed], components: [] });
+        }
+      } else {
+        await i.update({
+          embeds: [infoEmbed('❌ Restore cancelled.')],
+          components: []
+        });
+      }
+    });
+    
+    collector.on('end', async () => {
+      row.components.forEach(btn => btn.setDisabled(true));
+      await message.edit({ components: [row] }).catch(() => {});
+    });
+    
+  } catch (error) {
+    console.error('Error in /restore:', error);
+    const embed = backupErrorEmbed({ message: error.message || 'Failed to restore backup.' }, {
+      author: {
+        name: interaction.user.username,
+        iconURL: interaction.user.displayAvatarURL()
+      }
+    });
+    await interaction.editReply({ embeds: [embed] });
+  }
+};
+
+/**
+ * /backuplist - List all backups
+ */
+const handleBackupList = async (interaction) => {
+  if (!interaction.memberPermissions.has('Administrator')) {
+    const embed = backupErrorEmbed({ message: 'You need **Administrator** permissions to use this command.' }, {
+      author: {
+        name: interaction.user.username,
+        iconURL: interaction.user.displayAvatarURL()
+      }
+    });
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+    return;
+  }
+  
+  try {
+    const data = await listBackups(interaction.guildId);
+    
+    const embed = backupListEmbed(data, {
+      author: {
+        name: interaction.user.username,
+        iconURL: interaction.user.displayAvatarURL()
+      }
+    });
+    
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  } catch (error) {
+    console.error('Error in /backuplist:', error);
+    const embed = backupErrorEmbed({ message: error.message || 'Failed to list backups.' }, {
+      author: {
+        name: interaction.user.username,
+        iconURL: interaction.user.displayAvatarURL()
+      }
+    });
+    await interaction.reply({ embeds: [embed], ephemeral: false });
+  }
+};
+
+// ================ INTERACTION HANDLER ================
+
+client.on('interactionCreate', async (interaction) => {
+  if (!interaction.isChatInputCommand()) return;
+  
+  const { commandName } = interaction;
+  
+  console.log(`📝 Command executed: /${commandName} by ${interaction.user.tag}`);
+  
+  try {
+    switch (commandName) {
+      // Economy
+      case 'balance': await handleBalance(interaction); break;
+      case 'leaderboard': await handleLeaderboard(interaction); break;
+      
+      // Invites
+      case 'invites': await handleInvites(interaction); break;
+      case 'inviteleaderboard': await handleInviteLeaderboard(interaction); break;
+      
+      // Messages
+      case 'messages': await handleMessages(interaction); break;
+      case 'messageleaderboard': await handleMessageLeaderboard(interaction); break;
+      
+      // Utility
+      case 'ping': await handlePing(interaction); break;
+      case 'help': await handleHelp(interaction); break;
+      case 'serverinfo': await handleServerInfo(interaction); break;
+      case 'userinfo': await handleUserInfo(interaction); break;
+      case 'avatar': await handleAvatar(interaction); break;
+      case 'banner': await handleBanner(interaction); break;
+      case 'botinfo': await handleBotInfo(interaction); break;
+      
+      // Welcome/Leave
+      case 'setwelcome': await handleSetWelcome(interaction); break;
+      case 'setleave': await handleSetLeave(interaction); break;
+      
+      // Logging
+      case 'setlogchannel': await handleSetLogChannel(interaction); break;
+      
+      // Tickets
+      case 'claim': await handleClaim(interaction); break;
+      case 'close': await handleClose(interaction); break;
+      case 'reopen': await handleReopen(interaction); break;
+      case 'delete': await handleDelete(interaction); break;
+      case 'rename': await handleRename(interaction); break;
+      case 'adduser': await handleAddUser(interaction); break;
+      case 'removeuser': await handleRemoveUser(interaction); break;
+      case 'transcript': await handleTranscript(interaction); break;
+      
+      // Moderation
+      case 'ban': await handleBan(interaction); break;
+      case 'kick': await handleKick(interaction); break;
+      case 'timeout': await handleTimeout(interaction); break;
+      case 'untimeout': await handleUntimeout(interaction); break;
+      case 'purge': await handlePurge(interaction); break;
+      case 'warn': await handleWarn(interaction); break;
+      case 'warnings': await handleWarnings(interaction); break;
+      case 'clearwarnings': await handleClearWarnings(interaction); break;
+      
+      // Shop
+      case 'additem': await handleAddItem(interaction); break;
+      case 'edititem': await handleEditItem(interaction); break;
+      case 'removeitem': await handleRemoveItem(interaction); break;
+      case 'restock': await handleRestock(interaction); break;
+      case 'shoplist': await handleShopList(interaction); break;
+      
+      // Sell
+      case 'createsellpanel': await handleCreateSellPanel(interaction); break;
+      case 'editsellpanel': await handleEditSellPanel(interaction); break;
+      case 'deletesellpanel': await handleDeleteSellPanel(interaction); break;
+      
+      // AutoMod
+      case 'automod':
+        const subcommand = interaction.options.getSubcommand();
+        if (subcommand === 'enable') await handleAutoModEnable(interaction);
+        else if (subcommand === 'disable') await handleAutoModDisable(interaction);
+        else if (subcommand === 'settings') await handleAutoModSettings(interaction);
+        break;
+      
+      // Backup
+      case 'backup': await handleBackup(interaction); break;
+      case 'restore': await handleRestore(interaction); break;
+      case 'backuplist': await handleBackupList(interaction); break;
+      
+      default: {
+        const embed = errorEmbed(`Unknown command: /${commandName}`);
+        await interaction.reply({ embeds: [embed], ephemeral: false });
+      }
+    }
+  } catch (error) {
+    console.error(`❌ Error in /${commandName}:`, error);
+    const embed = errorEmbed('An unexpected error occurred. Please try again later.');
+    if (interaction.replied || interaction.deferred) {
+      await interaction.editReply({ embeds: [embed] });
+    } else {
+      await interaction.reply({ embeds: [embed], ephemeral: false });
+    }
+  }
+});
+
+// ================ READY EVENT ================
+
+client.once('ready', async () => {
+  console.log(`✅ Logged in as ${client.user.tag}`);
+  console.log(`📡 Connected to ${client.guilds.cache.size} guilds`);
+  
+  await initDatabase();
+  
+  // Register slash commands
+  await registerCommands();
+  
+  // Register events
+  registerEvents(client);
+  
+  client.user.setPresence({
+    activities: [{ 
+      name: `${client.guilds.cache.size} servers | /help`, 
+      type: ActivityType.Listening 
+    }],
+    status: 'online',
+  });
+  
+  console.log('🚀 Bot is fully operational');
+});
+
+// ================ START BOT ================
+
+const startBot = async () => {
+  try {
+    await client.login(config.token);
+  } catch (error) {
+    console.error('❌ Failed to start bot:', error);
+    process.exit(1);
+  }
+};
+
+startBot();
+
+// Graceful shutdown
+process.on('SIGINT', async () => {
+  console.log('🔄 Shutting down gracefully...');
+  await pool.end();
+  client.destroy();
+  process.exit(0);
+});
+
+process.on('SIGTERM', async () => {
+  console.log('🔄 Shutting down gracefully...');
+  await pool.end();
+  client.destroy();
+  process.exit(0);
+});
