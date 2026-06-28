@@ -153,7 +153,6 @@ const client = new Client({
     GatewayIntentBits.GuildMessageReactions,
     GatewayIntentBits.GuildVoiceStates,
     GatewayIntentBits.GuildPresences,
-    GatewayIntentBits.GuildModeration,
     GatewayIntentBits.MessageTyping
   ],
 });
