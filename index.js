@@ -1,5 +1,5 @@
 // index.js - Main Entry Point (FIXED)
-const { Client, GatewayIntentBits, REST, Routes, ActivityType, ComponentType } = require('discord.js');
+const { Client, GatewayIntentBits, REST, Routes, ActivityType, ComponentType, EmbedBuilder } = require('discord.js');
 const config = require('./config.json');
 const { pool, initDatabase } = require('./database.js');
 const { registerEvents } = require('./events.js');
