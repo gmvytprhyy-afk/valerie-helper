@@ -136,6 +136,7 @@ const handleMemberLeave = async (member) => {
 };
 
 // ================ MESSAGE CREATE EVENT ================
+// events.js - Fixed message handler
 const handleMessageCreate = async (message) => {
   // Ignore bot messages
   if (message.author.bot) return;
@@ -143,19 +144,14 @@ const handleMessageCreate = async (message) => {
   
   const guildId = message.guild.id;
   const userId = message.author.id;
-  const channelId = message.channel.id;
   
   try {
     // Process message for crystal rewards
     const rewardResult = await processMessageReward(userId, guildId);
-    if (rewardResult.crystalsEarned > 0) {
-      console.log(`💎 ${message.author.tag} earned ${rewardResult.crystalsEarned} crystal(s)`);
-    }
     
-    // Process AutoMod
-    const automodSettings = await getAutoModSettings(guildId);
-    if (automodSettings.enabled) {
-      await processAutoMod(message);
+    // Log if crystals were earned
+    if (rewardResult.crystalsEarned > 0) {
+      console.log(`💎 ${message.author.tag} earned ${rewardResult.crystalsEarned} crystal(s) for reaching a milestone!`);
     }
   } catch (error) {
     console.error(`❌ Error processing message from ${userId}:`, error);
