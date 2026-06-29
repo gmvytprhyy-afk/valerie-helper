@@ -968,7 +968,50 @@ const formatSellListingsForDisplay = (listings) => {
     rejectionReason: listing.rejection_reason
   }));
 };
+// economy.js - Add this function before module.exports
 
+/**
+ * Process message reward - awards crystals for milestones
+ */
+const processMessageReward = async (userId, guildId) => {
+  try {
+    // Update message count
+    await updateMessageCount(userId, guildId);
+    
+    // Check for milestone
+    const earned = await checkMessageMilestone(userId, guildId);
+    
+    if (earned > 0) {
+      // Award crystals
+      await addCrystals(
+        userId,
+        guildId,
+        earned,
+        `Message milestone reward`,
+        `msg_milestone`
+      );
+      
+      return {
+        success: true,
+        crystalsEarned: earned,
+        message: `💎 ${userId} earned ${earned} crystal(s) for reaching a message milestone!`
+      };
+    }
+    
+    return {
+      success: true,
+      crystalsEarned: 0,
+      message: `📝 ${userId} sent a message`
+    };
+  } catch (error) {
+    console.error('Error processing message reward:', error);
+    return { 
+      success: false, 
+      crystalsEarned: 0,
+      message: 'Error processing message reward' 
+    };
+  }
+};
 // ================ EXPORTS ================
 module.exports = {
   // Core Economy
