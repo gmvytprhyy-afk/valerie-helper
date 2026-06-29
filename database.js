@@ -2105,7 +2105,6 @@ const getCustomInvitesByUser = async (userId, guildId) => {
 
 // ================ EXPORTS ================
 module.exports = {
-  module.exports = {
   // ... existing exports ...
   
   // Custom Invites
@@ -2116,7 +2115,6 @@ module.exports = {
   getCustomInviteStats,
   getCustomInviteLeaderboard,
   getCustomInvitesByUser
-};
   
   // Core
   pool,
