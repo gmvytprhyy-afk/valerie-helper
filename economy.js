@@ -1012,6 +1012,136 @@ const processMessageReward = async (userId, guildId) => {
     };
   }
 };
+// ================ CUSTOM INVITE FUNCTIONS ================
+
+const {
+  createCustomInvite,
+  getCustomInvite,
+  incrementInviteUses,
+  markInviteJoinInactive,
+  getCustomInviteStats,
+  getCustomInviteLeaderboard,
+  getCustomInvitesByUser,
+  addCrystals,
+  removeCrystals,
+  getCrystals
+} = require('./database.js');
+
+const createCustomInviteLink = async (guildId, inviterId, maxUses = 0) => {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let code = '';
+  for (let i = 0; i < 8; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  const invite = await createCustomInvite(code, guildId, inviterId, maxUses);
+  return {
+    success: true,
+    code: code,
+    link: `https://discord.gg/${code}`,
+    maxUses: maxUses,
+    message: `✅ Custom invite created: \`${code}\``
+  };
+};
+
+const processCustomInviteJoin = async (inviteCode, userId, guildId) => {
+  try {
+    const invite = await getCustomInvite(inviteCode);
+    if (!invite || !invite.is_active) {
+      return { success: false, message: 'Invalid or inactive invite code' };
+    }
+    if (invite.inviter_id === userId) {
+      return { success: false, message: 'You cannot use your own invite' };
+    }
+    if (invite.max_uses > 0 && invite.uses >= invite.max_uses) {
+      return { success: false, message: 'This invite has reached maximum uses' };
+    }
+    await incrementInviteUses(inviteCode, userId);
+    await addCrystals(invite.inviter_id, guildId, 1, `Custom invite reward for ${userId} joining`, `invite_${inviteCode}`);
+    return {
+      success: true,
+      inviterId: invite.inviter_id,
+      crystalsEarned: 1,
+      message: `✅ ${invite.inviter_id} earned 1 crystal for inviting ${userId}`
+    };
+  } catch (error) {
+    console.error('Error processing custom invite join:', error);
+    return { success: false, message: error.message || 'Error processing invite' };
+  }
+};
+
+const processCustomInviteLeave = async (userId, guildId) => {
+  try {
+    const join = await markInviteJoinInactive(userId, guildId);
+    if (!join) {
+      return { success: false, message: 'No active invite found' };
+    }
+    const balance = await getCrystals(join.inviter_id, guildId);
+    if (balance > 0) {
+      await removeCrystals(join.inviter_id, guildId, 1, `Invite penalty for ${userId} leaving`, `leave_${userId}`);
+      return {
+        success: true,
+        inviterId: join.inviter_id,
+        crystalsRemoved: 1,
+        message: `🔻 ${join.inviter_id} lost 1 crystal because ${userId} left`
+      };
+    }
+    return {
+      success: true,
+      inviterId: join.inviter_id,
+      crystalsRemoved: 0,
+      message: `ℹ️ ${userId} left but ${join.inviter_id} has 0 crystals (no penalty)`
+    };
+  } catch (error) {
+    console.error('Error processing custom invite leave:', error);
+    return { success: false, message: 'Error processing invite penalty' };
+  }
+};
+
+const getCustomInviteStatsForUser = async (userId, guildId) => {
+  const stats = await getCustomInviteStats(userId, guildId);
+  const invites = await getCustomInvitesByUser(userId, guildId);
+  return {
+    totalInvites: invites.length,
+    totalJoins: stats.total_joins || 0,
+    activeJoins: stats.active_joins || 0,
+    totalLeaves: stats.total_leaves || 0,
+    invites: invites.map(i => ({
+      code: i.invite_code,
+      uses: i.uses,
+      maxUses: i.max_uses,
+      createdAt: i.created_at,
+      isActive: i.is_active
+    }))
+  };
+};
+
+const getCustomInviteLeaderboardWithUsers = async (guildId, limit = 10, client) => {
+  const data = await getCustomInviteLeaderboard(guildId, limit);
+  const formatted = [];
+  for (let i = 0; i < data.length; i++) {
+    const entry = data[i];
+    try {
+      const user = await client.users.fetch(entry.user_id);
+      formatted.push({
+        name: user.username,
+        tag: user.tag,
+        avatar: user.displayAvatarURL(),
+        joins: entry.total_joins,
+        active: entry.active_joins
+      });
+    } catch (err) {
+      formatted.push({
+        name: `Unknown User`,
+        tag: `Unknown#0000`,
+        avatar: null,
+        joins: entry.total_joins,
+        active: entry.active_joins
+      });
+    }
+  }
+  return formatted;
+};
+
 // ================ EXPORTS ================
 module.exports = {
   // Core Economy
@@ -1030,6 +1160,13 @@ module.exports = {
   processMessageReward,
   getUserMessageStats,
   getMessageLeaderboardWithUsers,
+  
+  // ... existing e
+  createCustomInviteLink,
+  processCustomInviteJoin,
+  processCustomInviteLeave,
+  getCustomInviteStatsForUser,
+  getCustomInviteLeaderboardWithUsers
   
   // Invite Rewards
   processInviteJoin,
