@@ -1,4 +1,4 @@
-// economy.js - Complete Economy System
+// economy.js - Complete Economy System (FIXED - Removed Duplicate Imports)
 const {
   // Core Database Functions
   getOrCreateCrystalEntry,
@@ -34,6 +34,7 @@ const {
   getShopStats,
   createPurchase,
   getPurchaseHistory,
+  getTotalSpent,
   
   // Sell
   createSellPanel,
@@ -58,6 +59,15 @@ const {
   createSellHistory,
   getSellHistory,
   getSellHistoryByManager,
+  
+  // Custom Invites
+  createCustomInvite,
+  getCustomInvite,
+  incrementInviteUses,
+  markInviteJoinInactive,
+  getCustomInviteStats,
+  getCustomInviteLeaderboard,
+  getCustomInvitesByUser,
   
   // Utilities
   pool,
@@ -218,9 +228,9 @@ const getRank = async (userId, guildId) => {
 // ================ MESSAGE REWARD FUNCTIONS ================
 
 /**
- * Process a message and award crystals if milestone reached
+ * Process message reward - awards crystals for milestones
  */
-const processMessage = async (userId, guildId) => {
+const processMessageReward = async (userId, guildId) => {
   try {
     // Update message count
     await updateMessageCount(userId, guildId);
@@ -252,7 +262,11 @@ const processMessage = async (userId, guildId) => {
     };
   } catch (error) {
     console.error('Error processing message reward:', error);
-    return { success: false, message: 'Error processing message reward' };
+    return { 
+      success: false, 
+      crystalsEarned: 0,
+      message: 'Error processing message reward' 
+    };
   }
 };
 
@@ -277,20 +291,17 @@ const getMessageLeaderboardWithUsers = async (guildId, limit = 10, period = 'tot
  */
 const processInviteJoin = async (inviteCode, userId, guildId) => {
   try {
-    // Track the invite use
     const invite = await trackInviteUse(inviteCode, userId);
     
     if (!invite) {
       return { success: false, message: 'Invalid invite code' };
     }
     
-    // Check for farming
     const isFarming = await checkInviteFarming(userId, guildId);
     if (isFarming) {
       return { success: false, message: 'Invite farming detected' };
     }
     
-    // Award 1 crystal to inviter
     await addCrystals(
       invite.inviter_id,
       guildId,
@@ -316,14 +327,12 @@ const processInviteJoin = async (inviteCode, userId, guildId) => {
  */
 const processInviteLeave = async (userId, guildId) => {
   try {
-    // Track the leave
     const join = await trackInviteLeave(userId, guildId);
     
     if (!join) {
       return { success: false, message: 'No active invite found' };
     }
     
-    // Remove 1 crystal from inviter
     const inviterBalance = await getCrystals(join.inviter_id, guildId);
     
     if (inviterBalance > 0) {
@@ -360,12 +369,9 @@ const processInviteLeave = async (userId, guildId) => {
  */
 const checkInviteFarming = async (userId, guildId) => {
   const stats = await getInviteStats(userId, guildId);
-  
-  // Check if user has joined multiple times (5+ active joins)
   if (stats.active_joins >= 5) {
     return true;
   }
-  
   return false;
 };
 
@@ -423,7 +429,6 @@ const getShopCategories = async (guildId) => {
  * Create a shop item
  */
 const createShopItemCommand = async (guildId, itemData) => {
-  // Validate item data
   if (!itemData.name || itemData.name.length < 1) {
     throw new Error('Item name is required');
   }
@@ -752,10 +757,8 @@ const createSellListing = async (panelId, userId, guildId, itemData) => {
     throw new Error('Panel not available in this server');
   }
   
-  // Create sell item
   const sellItem = await createSellItem(panelId, userId, guildId, itemData);
   
-  // Create ticket
   const ticket = await createSellTicket(
     sellItem.sell_id,
     userId,
@@ -858,7 +861,6 @@ const completeSellTransactionCommand = async (sellId, managerId, notes = null) =
   try {
     await client.query('BEGIN');
     
-    // Create history record
     await client.query(
       `INSERT INTO sell_history (
         sell_id, user_id, guild_id, item_name, price, quantity, total_amount, manager_id, notes, status
@@ -876,7 +878,6 @@ const completeSellTransactionCommand = async (sellId, managerId, notes = null) =
       ]
     );
     
-    // Deactivate sell item
     await client.query(
       `UPDATE sell_items 
        SET status = 'completed', is_active = FALSE, updated_at = CURRENT_TIMESTAMP
@@ -884,7 +885,6 @@ const completeSellTransactionCommand = async (sellId, managerId, notes = null) =
       [sellId]
     );
     
-    // Update ticket
     await client.query(
       `UPDATE sell_tickets 
        SET status = 'completed', manager_id = $1, reviewed_at = CURRENT_TIMESTAMP, notes = $2, updated_at = CURRENT_TIMESTAMP
@@ -968,65 +968,12 @@ const formatSellListingsForDisplay = (listings) => {
     rejectionReason: listing.rejection_reason
   }));
 };
-// economy.js - Add this function before module.exports
 
-/**
- * Process message reward - awards crystals for milestones
- */
-const processMessageReward = async (userId, guildId) => {
-  try {
-    // Update message count
-    await updateMessageCount(userId, guildId);
-    
-    // Check for milestone
-    const earned = await checkMessageMilestone(userId, guildId);
-    
-    if (earned > 0) {
-      // Award crystals
-      await addCrystals(
-        userId,
-        guildId,
-        earned,
-        `Message milestone reward`,
-        `msg_milestone`
-      );
-      
-      return {
-        success: true,
-        crystalsEarned: earned,
-        message: `💎 ${userId} earned ${earned} crystal(s) for reaching a message milestone!`
-      };
-    }
-    
-    return {
-      success: true,
-      crystalsEarned: 0,
-      message: `📝 ${userId} sent a message`
-    };
-  } catch (error) {
-    console.error('Error processing message reward:', error);
-    return { 
-      success: false, 
-      crystalsEarned: 0,
-      message: 'Error processing message reward' 
-    };
-  }
-};
 // ================ CUSTOM INVITE FUNCTIONS ================
 
-const {
-  createCustomInvite,
-  getCustomInvite,
-  incrementInviteUses,
-  markInviteJoinInactive,
-  getCustomInviteStats,
-  getCustomInviteLeaderboard,
-  getCustomInvitesByUser,
-  addCrystals,
-  removeCrystals,
-  getCrystals
-} = require('./database.js');
-
+/**
+ * Create a custom invite link
+ */
 const createCustomInviteLink = async (guildId, inviterId, maxUses = 0) => {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   let code = '';
@@ -1043,6 +990,9 @@ const createCustomInviteLink = async (guildId, inviterId, maxUses = 0) => {
   };
 };
 
+/**
+ * Process custom invite join
+ */
 const processCustomInviteJoin = async (inviteCode, userId, guildId) => {
   try {
     const invite = await getCustomInvite(inviteCode);
@@ -1069,6 +1019,9 @@ const processCustomInviteJoin = async (inviteCode, userId, guildId) => {
   }
 };
 
+/**
+ * Process custom invite leave (penalty)
+ */
 const processCustomInviteLeave = async (userId, guildId) => {
   try {
     const join = await markInviteJoinInactive(userId, guildId);
@@ -1097,6 +1050,9 @@ const processCustomInviteLeave = async (userId, guildId) => {
   }
 };
 
+/**
+ * Get custom invite stats for a user
+ */
 const getCustomInviteStatsForUser = async (userId, guildId) => {
   const stats = await getCustomInviteStats(userId, guildId);
   const invites = await getCustomInvitesByUser(userId, guildId);
@@ -1115,6 +1071,9 @@ const getCustomInviteStatsForUser = async (userId, guildId) => {
   };
 };
 
+/**
+ * Get custom invite leaderboard with users
+ */
 const getCustomInviteLeaderboardWithUsers = async (guildId, limit = 10, client) => {
   const data = await getCustomInviteLeaderboard(guildId, limit);
   const formatted = [];
@@ -1156,17 +1115,9 @@ module.exports = {
   getRank,
   
   // Message Rewards
-  processMessage,
   processMessageReward,
   getUserMessageStats,
   getMessageLeaderboardWithUsers,
-  
-  // ... existing e
-  createCustomInviteLink,
-  processCustomInviteJoin,
-  processCustomInviteLeave,
-  getCustomInviteStatsForUser,
-  getCustomInviteLeaderboardWithUsers
   
   // Invite Rewards
   processInviteJoin,
@@ -1206,6 +1157,13 @@ module.exports = {
   completeSellTransactionCommand,
   getUserSellHistory,
   formatSellListingsForDisplay,
+  
+  // Custom Invites
+  createCustomInviteLink,
+  processCustomInviteJoin,
+  processCustomInviteLeave,
+  getCustomInviteStatsForUser,
+  getCustomInviteLeaderboardWithUsers,
   
   // Direct Database Access (for advanced use)
   getOrCreateCrystalEntry,
