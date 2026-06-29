@@ -2114,7 +2114,7 @@ module.exports = {
   markInviteJoinInactive,
   getCustomInviteStats,
   getCustomInviteLeaderboard,
-  getCustomInvitesByUser
+  getCustomInvitesByUser,
   
   // Core
   pool,
