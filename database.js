@@ -610,6 +610,46 @@ const initDatabase = async () => {
         version VARCHAR(10) DEFAULT '1.0'
       );
     `);
+    // database.js - Add to initDatabase function
+
+// Custom Invite Tracking
+await pool.query(`
+  CREATE TABLE IF NOT EXISTS custom_invites (
+    invite_code VARCHAR(20) PRIMARY KEY,
+    guild_id VARCHAR(20) NOT NULL,
+    inviter_id VARCHAR(20) NOT NULL,
+    max_uses INT DEFAULT 0,
+    uses INT DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMP,
+    is_active BOOLEAN DEFAULT TRUE
+  );
+`);
+
+await pool.query(`
+  CREATE TABLE IF NOT EXISTS custom_invite_joins (
+    join_id SERIAL PRIMARY KEY,
+    invite_code VARCHAR(20) NOT NULL,
+    user_id VARCHAR(20) NOT NULL,
+    joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    is_active BOOLEAN DEFAULT TRUE,
+    FOREIGN KEY (invite_code) REFERENCES custom_invites(invite_code) ON DELETE CASCADE
+  );
+`);
+
+await pool.query(`
+  CREATE TABLE IF NOT EXISTS custom_invite_stats (
+    user_id VARCHAR(20) NOT NULL,
+    guild_id VARCHAR(20) NOT NULL,
+    total_invites INT DEFAULT 0,
+    total_joins INT DEFAULT 0,
+    active_joins INT DEFAULT 0,
+    total_leaves INT DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (user_id, guild_id)
+  );
+`);
 
     // 35. Backup Data
     await pool.query(`
@@ -1940,8 +1980,144 @@ const getBackupStats = async (guildId) => {
   return result.rows[0];
 };
 
+// ================ CUSTOM INVITE HELPERS ================
+
+const createCustomInvite = async (inviteCode, guildId, inviterId, maxUses = 0) => {
+  return await insert('custom_invites', {
+    invite_code: inviteCode,
+    guild_id: guildId,
+    inviter_id: inviterId,
+    max_uses: maxUses,
+    uses: 0,
+    is_active: true
+  });
+};
+
+const getCustomInvite = async (inviteCode) => {
+  return await getOne('custom_invites', { invite_code: inviteCode });
+};
+
+const incrementInviteUses = async (inviteCode, userId) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const result = await client.query(
+      `UPDATE custom_invites 
+       SET uses = uses + 1 
+       WHERE invite_code = $1 AND is_active = TRUE
+       RETURNING *;`,
+      [inviteCode]
+    );
+    if (result.rows.length === 0) throw new Error('Invalid invite code');
+    const invite = result.rows[0];
+    if (invite.max_uses > 0 && invite.uses > invite.max_uses) {
+      await client.query(`UPDATE custom_invites SET is_active = FALSE WHERE invite_code = $1;`, [inviteCode]);
+      throw new Error('Invite has reached maximum uses');
+    }
+    await client.query(
+      `INSERT INTO custom_invite_joins (invite_code, user_id) VALUES ($1, $2);`,
+      [inviteCode, userId]
+    );
+    await client.query(
+      `INSERT INTO custom_invite_stats (user_id, guild_id, total_joins, active_joins)
+       VALUES ($1, $2, 1, 1)
+       ON CONFLICT (user_id, guild_id) 
+       DO UPDATE SET 
+         total_joins = custom_invite_stats.total_joins + 1,
+         active_joins = custom_invite_stats.active_joins + 1,
+         updated_at = CURRENT_TIMESTAMP;`,
+      [invite.inviter_id, invite.guild_id]
+    );
+    await client.query('COMMIT');
+    return invite;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+};
+
+const markInviteJoinInactive = async (userId, guildId) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const joinResult = await client.query(
+      `SELECT * FROM custom_invite_joins 
+       WHERE user_id = $1 AND is_active = TRUE
+       ORDER BY joined_at DESC LIMIT 1;`,
+      [userId]
+    );
+    if (joinResult.rows.length === 0) {
+      await client.query('COMMIT');
+      return null;
+    }
+    const join = joinResult.rows[0];
+    await client.query(`UPDATE custom_invite_joins SET is_active = FALSE WHERE join_id = $1;`, [join.join_id]);
+    await client.query(
+      `UPDATE custom_invite_stats 
+       SET active_joins = active_joins - 1,
+           total_leaves = total_leaves + 1,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE user_id = $1 AND guild_id = $2;`,
+      [join.inviter_id, guildId]
+    );
+    await client.query('COMMIT');
+    return join;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+};
+
+const getCustomInviteStats = async (userId, guildId) => {
+  let stats = await getOne('custom_invite_stats', { user_id: userId, guild_id: guildId });
+  if (!stats) {
+    stats = await insert('custom_invite_stats', {
+      user_id: userId,
+      guild_id: guildId,
+      total_invites: 0,
+      total_joins: 0,
+      active_joins: 0,
+      total_leaves: 0
+    });
+  }
+  return stats;
+};
+
+const getCustomInviteLeaderboard = async (guildId, limit = 10) => {
+  const result = await query(
+    `SELECT user_id, total_joins, active_joins
+     FROM custom_invite_stats
+     WHERE guild_id = $1
+     ORDER BY total_joins DESC
+     LIMIT $2;`,
+    [guildId, limit]
+  );
+  return result.rows;
+};
+
+const getCustomInvitesByUser = async (userId, guildId) => {
+  return await getAll('custom_invites', { inviter_id: userId, guild_id: guildId });
+};
+
 // ================ EXPORTS ================
 module.exports = {
+  module.exports = {
+  // ... existing exports ...
+  
+  // Custom Invites
+  createCustomInvite,
+  getCustomInvite,
+  incrementInviteUses,
+  markInviteJoinInactive,
+  getCustomInviteStats,
+  getCustomInviteLeaderboard,
+  getCustomInvitesByUser
+};
+  
   // Core
   pool,
   initDatabase,
