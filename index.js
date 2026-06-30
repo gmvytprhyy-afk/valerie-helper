@@ -3299,7 +3299,7 @@ client.on('interactionCreate', async (interaction) => {
         return;
       }
       
-      const panelId = panels[0].panel_id; // Use first panel as default
+      const panelId = panels[0].panel_id; // Use first panel as default h
       
       const result = await createSellListing(
         panelId,
