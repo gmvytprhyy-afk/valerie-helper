@@ -3080,6 +3080,7 @@ const ticketUserRemoveEmbed = (result, options = {}) => {
 // ================ COMPONENT HANDLERS ================
 
 // Shop Category Select
+// Shop Category Select (UPDATED)
 client.on('interactionCreate', async (interaction) => {
   if (interaction.isStringSelectMenu() && interaction.customId === 'shop_category') {
     const selected = interaction.values[0];
@@ -3099,14 +3100,18 @@ client.on('interactionCreate', async (interaction) => {
         categoryName = selected;
       }
       
-      const embed = shopCategoryEmbed(categoryName, items, {
+      const { embed, rows } = shopCategoryEmbed(categoryName, items, {
         author: {
           name: interaction.user.username,
           iconURL: interaction.user.displayAvatarURL()
         }
       });
       
-      await interaction.update({ embeds: [embed] });
+      if (rows.length > 0) {
+        await interaction.update({ embeds: [embed], components: rows });
+      } else {
+        await interaction.update({ embeds: [embed] });
+      }
     } catch (error) {
       console.error('Error in category select:', error);
       const embed = errorEmbed('Failed to load category.');
@@ -3116,21 +3121,91 @@ client.on('interactionCreate', async (interaction) => {
 });
 
 // View All Items Button
+// View All Items Button (UPDATED)
 client.on('interactionCreate', async (interaction) => {
   if (interaction.isButton() && interaction.customId === 'shop_view_all') {
     try {
       const shopData = await getFullShopList(interaction.guildId);
-      const embed = shopCategoryEmbed('📋 All Items', shopData.items, {
+      const { embed, rows } = shopCategoryEmbed('📋 All Items', shopData.items, {
         author: {
           name: interaction.user.username,
           iconURL: interaction.user.displayAvatarURL()
         }
       });
-      await interaction.update({ embeds: [embed] });
+      
+      if (rows.length > 0) {
+        await interaction.update({ embeds: [embed], components: rows });
+      } else {
+        await interaction.update({ embeds: [embed] });
+      }
     } catch (error) {
       console.error('Error in view all:', error);
       const embed = errorEmbed('Failed to load items.');
       await interaction.update({ embeds: [embed] });
+    }
+  }
+});
+
+// Purchase Button Handler (NEW)
+client.on('interactionCreate', async (interaction) => {
+  if (interaction.isButton() && interaction.customId.startsWith('purchase_')) {
+    const itemId = parseInt(interaction.customId.split('_')[1]);
+    
+    if (!interaction.guildId) {
+      await interaction.reply({ embeds: [errorEmbed('This command can only be used in a server.')] });
+      return;
+    }
+    
+    const modal = new ModalBuilder()
+      .setCustomId(`purchase_modal_${itemId}`)
+      .setTitle('🛒 Purchase Item');
+    
+    const quantityInput = new TextInputBuilder()
+      .setCustomId('quantity')
+      .setLabel('How many would you like to buy?')
+      .setStyle(TextInputStyle.Short)
+      .setPlaceholder('Enter quantity (default: 1)')
+      .setRequired(true)
+      .setMinLength(1)
+      .setMaxLength(3);
+    
+    const row = new ActionRowBuilder().addComponents(quantityInput);
+    modal.addComponents(row);
+    
+    await interaction.showModal(modal);
+  }
+});
+
+// Purchase Modal Submit Handler (NEW)
+client.on('interactionCreate', async (interaction) => {
+  if (interaction.isModalSubmit() && interaction.customId.startsWith('purchase_modal_')) {
+    const itemId = parseInt(interaction.customId.split('_')[2]);
+    const quantity = parseInt(interaction.fields.getTextInputValue('quantity')) || 1;
+    const userId = interaction.user.id;
+    const guildId = interaction.guildId;
+    
+    if (!guildId) {
+      await interaction.reply({ embeds: [errorEmbed('This command can only be used in a server.')] });
+      return;
+    }
+    
+    try {
+      await interaction.deferReply();
+      
+      const result = await purchaseShopItem(userId, guildId, itemId, quantity);
+      
+      const embed = purchaseConfirmEmbed(result, {
+        author: {
+          name: interaction.user.username,
+          iconURL: interaction.user.displayAvatarURL()
+        }
+      });
+      
+      await interaction.editReply({ embeds: [embed] });
+    } catch (error) {
+      console.error('Error in purchase:', error);
+      const embed = errorEmbed(error.message || 'Failed to purchase item.');
+      await interaction.editReply({ embeds: [embed] });
     }
   }
 });
