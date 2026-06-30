@@ -3419,6 +3419,124 @@ client.on('interactionCreate', async (interaction) => {
   }
 });
 
+// ================ ADMIN CRYSTAL HANDLERS ================
+
+/**
+ * /add-crystals - Add crystals to a user (Admin only)
+ */
+const handleAddCrystals = async (interaction) => {
+  // Check admin permissions
+  if (!interaction.memberPermissions.has(PermissionFlagsBits.Administrator)) {
+    const embed = errorEmbed('You need **Administrator** permissions to use this command.');
+    await interaction.reply({ embeds: [embed] });
+    return;
+  }
+  
+  const targetUser = interaction.options.getUser('user');
+  const amount = interaction.options.getInteger('amount');
+  const reason = interaction.options.getString('reason') || 'Admin added';
+  
+  try {
+    const result = await adminAddCrystals(targetUser.id, interaction.guildId, amount, reason);
+    
+    const embed = successEmbed('✅ Crystals Added', {
+      fields: [
+        { name: '👤 User', value: `<@${result.user}>`, inline: true },
+        { name: '➕ Amount Added', value: `${result.amount} 💎`, inline: true },
+        { name: '💰 New Balance', value: `${result.newBalance} 💎`, inline: true },
+        { name: '📝 Reason', value: reason, inline: false }
+      ],
+      author: {
+        name: interaction.user.username,
+        iconURL: interaction.user.displayAvatarURL()
+      }
+    });
+    
+    await interaction.reply({ embeds: [embed] });
+  } catch (error) {
+    console.error('Error in /add-crystals:', error);
+    const embed = errorEmbed(error.message || 'Failed to add crystals.');
+    await interaction.reply({ embeds: [embed] });
+  }
+};
+
+/**
+ * /remove-crystals - Remove crystals from a user (Admin only)
+ */
+const handleRemoveCrystals = async (interaction) => {
+  // Check admin permissions
+  if (!interaction.memberPermissions.has(PermissionFlagsBits.Administrator)) {
+    const embed = errorEmbed('You need **Administrator** permissions to use this command.');
+    await interaction.reply({ embeds: [embed] });
+    return;
+  }
+  
+  const targetUser = interaction.options.getUser('user');
+  const amount = interaction.options.getInteger('amount');
+  const reason = interaction.options.getString('reason') || 'Admin removed';
+  
+  try {
+    const result = await adminRemoveCrystals(targetUser.id, interaction.guildId, amount, reason);
+    
+    const embed = successEmbed('✅ Crystals Removed', {
+      fields: [
+        { name: '👤 User', value: `<@${result.user}>`, inline: true },
+        { name: '➖ Amount Removed', value: `${result.amount} 💎`, inline: true },
+        { name: '💰 New Balance', value: `${result.newBalance} 💎`, inline: true },
+        { name: '📝 Reason', value: reason, inline: false }
+      ],
+      author: {
+        name: interaction.user.username,
+        iconURL: interaction.user.displayAvatarURL()
+      }
+    });
+    
+    await interaction.reply({ embeds: [embed] });
+  } catch (error) {
+    console.error('Error in /remove-crystals:', error);
+    const embed = errorEmbed(error.message || 'Failed to remove crystals.');
+    await interaction.reply({ embeds: [embed] });
+  }
+};
+
+/**
+ * /set-crystals - Set a user's crystals (Admin only)
+ */
+const handleSetCrystals = async (interaction) => {
+  // Check admin permissions
+  if (!interaction.memberPermissions.has(PermissionFlagsBits.Administrator)) {
+    const embed = errorEmbed('You need **Administrator** permissions to use this command.');
+    await interaction.reply({ embeds: [embed] });
+    return;
+  }
+  
+  const targetUser = interaction.options.getUser('user');
+  const amount = interaction.options.getInteger('amount');
+  const reason = interaction.options.getString('reason') || 'Admin set';
+  
+  try {
+    const result = await adminSetCrystals(targetUser.id, interaction.guildId, amount, reason);
+    
+    const embed = successEmbed('✅ Crystals Set', {
+      fields: [
+        { name: '👤 User', value: `<@${result.user}>`, inline: true },
+        { name: '💰 New Balance', value: `${result.newBalance} 💎`, inline: true },
+        { name: '📝 Reason', value: reason, inline: false }
+      ],
+      author: {
+        name: interaction.user.username,
+        iconURL: interaction.user.displayAvatarURL()
+      }
+    });
+    
+    await interaction.reply({ embeds: [embed] });
+  } catch (error) {
+    console.error('Error in /set-crystals:', error);
+    const embed = errorEmbed(error.message || 'Failed to set crystals.');
+    await interaction.reply({ embeds: [embed] });
+  }
+};
+
 // ================ INTERACTION HANDLER ================
 
 client.on('interactionCreate', async (interaction) => {
@@ -3502,7 +3620,17 @@ client.on('interactionCreate', async (interaction) => {
         else if (subcommand === 'disable') await handleAutoModDisable(interaction);
         else if (subcommand === 'settings') await handleAutoModSettings(interaction);
         break;
-      
+
+ case 'add-crystals':
+  await handleAddCrystals(interaction);
+  break;
+case 'remove-crystals':
+  await handleRemoveCrystals(interaction);
+  break;
+case 'set-crystals':
+  await handleSetCrystals(interaction);
+  break;
+        
       // Backup
       case 'backup': await handleBackup(interaction); break;
       case 'restore': await handleRestore(interaction); break;
