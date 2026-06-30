@@ -1,6 +1,7 @@
-// utility.js - Complete Utility Functions
+// utility.js - Complete Utility Functions (UPDATED with Enhanced Leaderboard)
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType } = require('discord.js');
 const { successEmbed, errorEmbed, infoEmbed, customEmbed } = require('./embeds.js');
+const { pool } = require('./database.js');
 
 // ================ FORMATTING FUNCTIONS ================
 
@@ -614,6 +615,173 @@ const getUserBanner = async (user) => {
   return null;
 };
 
+// ================ ENHANCED LEADERBOARD FUNCTIONS ================
+
+/**
+ * Get full leaderboard with pagination for crystals
+ */
+const getFullCrystalLeaderboard = async (guildId, page = 1, limit = 10) => {
+  const offset = (page - 1) * limit;
+  
+  const result = await pool.query(
+    `SELECT user_id, crystals, total_earned, total_spent
+     FROM crystal_economy
+     WHERE guild_id = $1
+     ORDER BY crystals DESC
+     LIMIT $2 OFFSET $3;`,
+    [guildId, limit, offset]
+  );
+  
+  const total = await pool.query(
+    `SELECT COUNT(*) as count FROM crystal_economy WHERE guild_id = $1;`,
+    [guildId]
+  );
+  
+  return {
+    entries: result.rows,
+    total: parseInt(total.rows[0]?.count) || 0,
+    page: page,
+    totalPages: Math.ceil((parseInt(total.rows[0]?.count) || 0) / limit)
+  };
+};
+
+/**
+ * Get full leaderboard with pagination for messages
+ */
+const getFullMessageLeaderboard = async (guildId, page = 1, limit = 10, period = 'total') => {
+  const offset = (page - 1) * limit;
+  
+  let orderBy = 'total_messages';
+  if (period === 'daily') orderBy = 'daily_messages';
+  if (period === 'weekly') orderBy = 'weekly_messages';
+  
+  const result = await pool.query(
+    `SELECT user_id, ${orderBy} as count
+     FROM message_counts
+     WHERE guild_id = $1
+     ORDER BY ${orderBy} DESC
+     LIMIT $2 OFFSET $3;`,
+    [guildId, limit, offset]
+  );
+  
+  const total = await pool.query(
+    `SELECT COUNT(*) as count FROM message_counts WHERE guild_id = $1;`,
+    [guildId]
+  );
+  
+  return {
+    entries: result.rows,
+    total: parseInt(total.rows[0]?.count) || 0,
+    page: page,
+    totalPages: Math.ceil((parseInt(total.rows[0]?.count) || 0) / limit)
+  };
+};
+
+/**
+ * Get full leaderboard with pagination for invites
+ */
+const getFullInviteLeaderboard = async (guildId, page = 1, limit = 10) => {
+  const offset = (page - 1) * limit;
+  
+  const result = await pool.query(
+    `SELECT user_id, total_joins as count
+     FROM invite_stats
+     WHERE guild_id = $1
+     ORDER BY total_joins DESC
+     LIMIT $2 OFFSET $3;`,
+    [guildId, limit, offset]
+  );
+  
+  const total = await pool.query(
+    `SELECT COUNT(*) as count FROM invite_stats WHERE guild_id = $1;`,
+    [guildId]
+  );
+  
+  return {
+    entries: result.rows,
+    total: parseInt(total.rows[0]?.count) || 0,
+    page: page,
+    totalPages: Math.ceil((parseInt(total.rows[0]?.count) || 0) / limit)
+  };
+};
+
+/**
+ * Get user's rank in leaderboard
+ */
+const getUserRankInLeaderboard = async (guildId, userId, type = 'crystals') => {
+  let queryText = '';
+  
+  if (type === 'crystals') {
+    queryText = `
+      SELECT COUNT(*) + 1 as rank
+      FROM crystal_economy
+      WHERE guild_id = $1 AND crystals > (SELECT crystals FROM crystal_economy WHERE user_id = $2 AND guild_id = $1);
+    `;
+  } else if (type === 'messages') {
+    queryText = `
+      SELECT COUNT(*) + 1 as rank
+      FROM message_counts
+      WHERE guild_id = $1 AND total_messages > (SELECT total_messages FROM message_counts WHERE user_id = $2 AND guild_id = $1);
+    `;
+  } else if (type === 'invites') {
+    queryText = `
+      SELECT COUNT(*) + 1 as rank
+      FROM invite_stats
+      WHERE guild_id = $1 AND total_joins > (SELECT total_joins FROM invite_stats WHERE user_id = $2 AND guild_id = $1);
+    `;
+  }
+  
+  const result = await pool.query(queryText, [guildId, userId]);
+  return parseInt(result.rows[0]?.rank) || 0;
+};
+
+/**
+ * Get user's own stats for leaderboard display
+ */
+const getUserLeaderboardStats = async (guildId, userId, type = 'crystals') => {
+  let result;
+  
+  if (type === 'crystals') {
+    result = await pool.query(
+      `SELECT crystals as value, total_earned, total_spent
+       FROM crystal_economy
+       WHERE guild_id = $1 AND user_id = $2;`,
+      [guildId, userId]
+    );
+    return {
+      value: result.rows[0]?.crystals || 0,
+      totalEarned: result.rows[0]?.total_earned || 0,
+      totalSpent: result.rows[0]?.total_spent || 0
+    };
+  } else if (type === 'messages') {
+    result = await pool.query(
+      `SELECT total_messages as value, daily_messages, weekly_messages
+       FROM message_counts
+       WHERE guild_id = $1 AND user_id = $2;`,
+      [guildId, userId]
+    );
+    return {
+      value: result.rows[0]?.total_messages || 0,
+      daily: result.rows[0]?.daily_messages || 0,
+      weekly: result.rows[0]?.weekly_messages || 0
+    };
+  } else if (type === 'invites') {
+    result = await pool.query(
+      `SELECT total_joins as value, active_joins, total_leaves
+       FROM invite_stats
+       WHERE guild_id = $1 AND user_id = $2;`,
+      [guildId, userId]
+    );
+    return {
+      value: result.rows[0]?.total_joins || 0,
+      active: result.rows[0]?.active_joins || 0,
+      leaves: result.rows[0]?.total_leaves || 0
+    };
+  }
+  
+  return { value: 0 };
+};
+
 // ================ EMBED UTILITY FUNCTIONS ================
 
 /**
@@ -736,6 +904,13 @@ module.exports = {
   getServerInfo,
   getUserInfo,
   getUserBanner,
+  
+  // Enhanced Leaderboard
+  getFullCrystalLeaderboard,
+  getFullMessageLeaderboard,
+  getFullInviteLeaderboard,
+  getUserRankInLeaderboard,
+  getUserLeaderboardStats,
   
   // Embed Utilities
   createFieldEmbed,
