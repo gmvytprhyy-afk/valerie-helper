@@ -1,4 +1,4 @@
-// embeds.js - Complete Embed Builder System (FIXED - Duplicate warningEmbed removed)
+// embeds.js - Complete Embed Builder System (UPDATED)
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 
 // ================ CONSTANTS ================
@@ -215,6 +215,156 @@ const shopEmbed = (title, description, options = {}) => {
     footer: options.footer,
     footerIcon: options.footerIcon,
     timestamp: options.timestamp
+  });
+};
+
+// ================ SHOP UI EMBEDS ================
+
+const shopMenuEmbed = (shopData, options = {}) => {
+  const fields = [];
+  
+  fields.push({
+    name: '📊 Shop Statistics',
+    value: `**Total Items:** ${shopData.stats?.active_items || 0}\n**Categories:** ${Object.keys(shopData.categories || {}).length}`,
+    inline: false
+  });
+  
+  if (shopData.categories) {
+    const categoryList = Object.entries(shopData.categories)
+      .map(([name, data]) => `${data.emoji || '📂'} ${name} (${data.items.length})`)
+      .join('\n');
+    fields.push({
+      name: '📂 Categories',
+      value: categoryList || 'No categories available',
+      inline: false
+    });
+  }
+  
+  if (options.balance !== undefined) {
+    fields.push({
+      name: '💎 Your Balance',
+      value: `${options.balance} crystals`,
+      inline: false
+    });
+  }
+  
+  return createBaseEmbed({
+    color: COLORS.SHOP,
+    title: options.title || '🏪 Shop',
+    description: options.description || 'Select a category below to browse items.',
+    author: options.author,
+    thumbnail: options.thumbnail || 'https://cdn.discordapp.com/emojis/1000500000000000001.png',
+    fields: fields,
+    footer: 'Use the dropdown menu to browse categories',
+    timestamp: true
+  });
+};
+
+const shopCategoryEmbed = (category, items, options = {}) => {
+  const fields = [];
+  
+  items.slice(0, 10).forEach((item, index) => {
+    const stockText = item.stock === -1 ? '♾️' : item.stock === 0 ? '❌' : `${item.stock}`;
+    const priceText = item.price === 0 ? 'FREE' : `${item.price} 💎`;
+    fields.push({
+      name: `${index + 1}. ${item.emoji || '🛒'} ${item.name}`,
+      value: `💰 ${priceText} | 📦 ${stockText}\n📝 ${item.description || 'No description'}`,
+      inline: false
+    });
+  });
+  
+  if (items.length > 10) {
+    fields.push({
+      name: '📊 Showing First 10',
+      value: `${items.length - 10} more items available. Use the button below to view all.`,
+      inline: false
+    });
+  }
+  
+  return createBaseEmbed({
+    color: COLORS.SHOP,
+    title: `📂 ${category}`,
+    description: options.description || 'Select an item below to purchase.',
+    author: options.author,
+    thumbnail: options.thumbnail,
+    fields: fields,
+    footer: `Total: ${items.length} items`,
+    timestamp: true
+  });
+};
+
+const purchaseConfirmEmbed = (result, options = {}) => {
+  const fields = [
+    { name: '🛒 Item', value: result.item.name, inline: true },
+    { name: '🔢 Quantity', value: `${result.quantity}`, inline: true },
+    { name: '💰 Total Cost', value: `${result.totalCost} 💎`, inline: true },
+    { name: '📦 Remaining Stock', value: result.item.stock === -1 ? '♾️ Unlimited' : `${result.item.stock - result.quantity}`, inline: true },
+    { name: '💎 New Balance', value: `${result.newBalance} 💎`, inline: true }
+  ];
+  
+  if (result.item.role_id) {
+    fields.push({ name: '🎭 Role Granted', value: `<@&${result.item.role_id}>`, inline: true });
+  }
+  
+  return createBaseEmbed({
+    color: COLORS.SUCCESS,
+    title: '✅ Purchase Successful!',
+    description: `You have successfully purchased **${result.quantity}x ${result.item.name}**!`,
+    author: options.author,
+    thumbnail: result.item.image_url || null,
+    fields: fields,
+    footer: `Purchase ID: #${result.purchase.purchase_id}`,
+    timestamp: true
+  });
+};
+
+const sellMenuEmbed = (panels, options = {}) => {
+  const fields = [];
+  
+  panels.forEach((panel, index) => {
+    fields.push({
+      name: `${index + 1}. 📋 ${panel.title}`,
+      value: `📢 <#${panel.channel_id}>\n📝 ${panel.description || 'No description'}\n✅ Approval: ${panel.require_approval ? 'Required' : 'Not Required'}`,
+      inline: false
+    });
+  });
+  
+  if (panels.length === 0) {
+    fields.push({
+      name: '📭 No Sell Panels',
+      value: 'No sell panels have been created in this server.',
+      inline: false
+    });
+  }
+  
+  return createBaseEmbed({
+    color: COLORS.SELL,
+    title: '💰 Sell System',
+    description: 'Select a panel below to start selling your items.',
+    author: options.author,
+    thumbnail: options.thumbnail || 'https://cdn.discordapp.com/emojis/1000500000000000004.png',
+    fields: fields,
+    footer: 'Use the dropdown menu to select a panel',
+    timestamp: true
+  });
+};
+
+const sellListingEmbed = (panel, options = {}) => {
+  const fields = [
+    { name: '📋 Panel', value: panel.title, inline: true },
+    { name: '📢 Channel', value: `<#${panel.channel_id}>`, inline: true },
+    { name: '✅ Approval Required', value: panel.require_approval ? 'Yes' : 'No', inline: true }
+  ];
+  
+  return createBaseEmbed({
+    color: COLORS.SELL,
+    title: '📝 Create Sell Listing',
+    description: 'Fill out the form below to list your item for sale.',
+    author: options.author,
+    thumbnail: options.thumbnail,
+    fields: fields,
+    footer: 'Click the button below to open the form',
+    timestamp: true
   });
 };
 
@@ -653,7 +803,6 @@ const purgeEmbed = (result, options = {}) => {
   });
 };
 
-// ================ MODERATION WARNING EMBED (RENAMED FROM warningEmbed TO AVOID DUPLICATE) ================
 const moderationWarningEmbed = (result, options = {}) => {
   return createBaseEmbed({
     color: COLORS.WARNING,
@@ -1112,6 +1261,108 @@ const logChannelEmbed = (settings, options = {}) => {
   });
 };
 
+// ================ ENHANCED LEADERBOARD EMBEDS ================
+
+const fullLeaderboardEmbed = (data, type, options = {}) => {
+  const fields = [];
+  
+  const typeLabels = {
+    crystals: { emoji: '💎', label: 'Crystals', value: 'crystals' },
+    messages: { emoji: '💬', label: 'Messages', value: 'messages' },
+    invites: { emoji: '🎯', label: 'Invites', value: 'invites' }
+  };
+  
+  const typeInfo = typeLabels[type] || typeLabels.crystals;
+  
+  fields.push({
+    name: `📊 ${typeInfo.emoji} ${typeInfo.label} Leaderboard`,
+    value: `**Total Members:** ${data.total}\n**Page:** ${data.page}/${data.totalPages}`,
+    inline: false
+  });
+  
+  if (data.entries && data.entries.length > 0) {
+    const entriesText = data.entries.map((entry, index) => {
+      const globalIndex = ((data.page - 1) * 10) + index + 1;
+      const medal = globalIndex === 1 ? '🥇' : globalIndex === 2 ? '🥈' : globalIndex === 3 ? '🥉' : `${globalIndex}.`;
+      
+      let valueText = '';
+      if (type === 'crystals') {
+        valueText = `${entry.crystals} 💎`;
+        if (entry.total_earned) valueText += ` (${entry.total_earned} earned)`;
+      } else if (type === 'messages') {
+        valueText = `${entry.count} messages`;
+      } else if (type === 'invites') {
+        valueText = `${entry.count} invites`;
+      }
+      
+      return `${medal} **${entry.username || entry.user_id}** — ${valueText}`;
+    }).join('\n');
+    
+    fields.push({
+      name: `🏆 Top Members`,
+      value: entriesText || 'No entries found.',
+      inline: false
+    });
+  } else {
+    fields.push({
+      name: '📭 No Data',
+      value: 'No members found in this category.',
+      inline: false
+    });
+  }
+  
+  if (options.userRank && options.userRank > 0) {
+    const medal = options.userRank === 1 ? '🥇' : options.userRank === 2 ? '🥈' : options.userRank === 3 ? '🥉' : `#${options.userRank}`;
+    fields.push({
+      name: `📍 Your Rank`,
+      value: `${medal} — ${options.userValue || '0'} ${typeInfo.label}`,
+      inline: false
+    });
+  }
+  
+  const embed = createBaseEmbed({
+    color: options.color || COLORS.LEADERBOARD,
+    title: options.title || `🏆 ${typeInfo.label} Leaderboard`,
+    description: options.description || `Showing members ranked by ${typeInfo.label.toLowerCase()}.`,
+    author: options.author,
+    thumbnail: options.thumbnail,
+    fields: fields,
+    footer: `Page ${data.page}/${data.totalPages} • Total: ${data.total} members`,
+    timestamp: true
+  });
+  
+  const row = new ActionRowBuilder()
+    .addComponents(
+      new ButtonBuilder()
+        .setCustomId('lb_first')
+        .setLabel('⏮️')
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(data.page === 1),
+      new ButtonBuilder()
+        .setCustomId('lb_prev')
+        .setLabel('◀️')
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(data.page === 1),
+      new ButtonBuilder()
+        .setCustomId('lb_jump')
+        .setLabel(`Page ${data.page}/${data.totalPages}`)
+        .setStyle(ButtonStyle.Primary)
+        .setDisabled(data.totalPages <= 1),
+      new ButtonBuilder()
+        .setCustomId('lb_next')
+        .setLabel('▶️')
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(data.page === data.totalPages),
+      new ButtonBuilder()
+        .setCustomId('lb_last')
+        .setLabel('⏭️')
+        .setStyle(ButtonStyle.Secondary)
+        .setDisabled(data.page === data.totalPages)
+    );
+  
+  return { embed, row };
+};
+
 // ================ BACKUP EMBEDS ================
 const backupCreatedEmbed = (result, options = {}) => {
   const fields = [
@@ -1232,218 +1483,7 @@ const paginateEmbed = (baseEmbed, items, itemsPerPage = 10) => {
   
   return pages;
 };
-// ================ NEW SHOP UI EMBEDS ================
 
-/**
- * Shop Main Menu Embed
- */
-const shopMenuEmbed = (shopData, options = {}) => {
-  const fields = [];
-  
-  // Shop Stats
-  fields.push({
-    name: '📊 Shop Statistics',
-    value: `**Total Items:** ${shopData.stats?.active_items || 0}\n**Categories:** ${Object.keys(shopData.categories || {}).length}`,
-    inline: false
-  });
-  
-  // Categories as quick view
-  if (shopData.categories) {
-    const categoryList = Object.entries(shopData.categories)
-      .map(([name, data]) => `${data.emoji || '📂'} ${name} (${data.items.length})`)
-      .join('\n');
-    fields.push({
-      name: '📂 Categories',
-      value: categoryList || 'No categories available',
-      inline: false
-    });
-  }
-  
-  // User Balance
-  if (options.balance !== undefined) {
-    fields.push({
-      name: '💎 Your Balance',
-      value: `${options.balance} crystals`,
-      inline: false
-    });
-  }
-  
-  return createBaseEmbed({
-    color: COLORS.SHOP,
-    title: options.title || '🏪 Shop',
-    description: options.description || 'Select a category below to browse items.',
-    author: options.author,
-    thumbnail: options.thumbnail || 'https://cdn.discordapp.com/emojis/1000500000000000001.png',
-    fields: fields,
-    footer: 'Use the dropdown menu to browse categories',
-    timestamp: true
-  });
-};
-
-/**
- * Shop Category View Embed
- */
-const shopCategoryEmbed = (category, items, options = {}) => {
-  const fields = [];
-  
-  items.slice(0, 10).forEach((item, index) => {
-    const stockText = item.stock === -1 ? '♾️' : item.stock === 0 ? '❌' : `${item.stock}`;
-    const priceText = item.price === 0 ? 'FREE' : `${item.price} 💎`;
-    fields.push({
-      name: `${index + 1}. ${item.emoji || '🛒'} ${item.name}`,
-      value: `💰 ${priceText} | 📦 ${stockText}\n📝 ${item.description || 'No description'}`,
-      inline: false
-    });
-  });
-  
-  if (items.length > 10) {
-    fields.push({
-      name: '📊 Showing First 10',
-      value: `${items.length - 10} more items available. Use the button below to view all.`,
-      inline: false
-    });
-  }
-  
-  return createBaseEmbed({
-    color: COLORS.SHOP,
-    title: `📂 ${category}`,
-    description: options.description || 'Select an item below to purchase.',
-    author: options.author,
-    thumbnail: options.thumbnail,
-    fields: fields,
-    footer: `Total: ${items.length} items`,
-    timestamp: true
-  });
-};
-
-/**
- * Shop Item Detail Embed
- */
-const shopItemDetailEmbed = (item, options = {}) => {
-  const fields = [
-    { name: '💰 Price', value: item.price === 0 ? 'FREE' : `${item.price} 💎`, inline: true },
-    { name: '📦 Stock', value: item.stock === -1 ? '♾️ Unlimited' : `${item.stock} left`, inline: true },
-    { name: '📂 Category', value: item.category_name || 'Uncategorized', inline: true }
-  ];
-  
-  if (item.description) {
-    fields.push({ name: '📝 Description', value: item.description, inline: false });
-  }
-  
-  if (item.is_limited) {
-    fields.push({ name: '🔒 Limited Item', value: `Limit: ${item.limit_per_user} per user`, inline: true });
-  }
-  
-  if (item.role_id) {
-    fields.push({ name: '🎭 Role Granted', value: `<@&${item.role_id}>`, inline: true });
-  }
-  
-  if (options.balance !== undefined) {
-    fields.push({
-      name: '💎 Your Balance',
-      value: `${options.balance} crystals`,
-      inline: false
-    });
-  }
-  
-  const embed = createBaseEmbed({
-    color: COLORS.SHOP,
-    title: `🛒 ${item.name}`,
-    description: options.description || 'Review the item details below.',
-    author: options.author,
-    thumbnail: item.image_url || null,
-    image: item.image_url || null,
-    fields: fields,
-    footer: `Item ID: ${item.item_id}`,
-    timestamp: true
-  });
-  
-  return embed;
-};
-
-/**
- * Purchase Confirmation Embed (Enhanced)
- */
-const purchaseConfirmEmbed = (result, options = {}) => {
-  const fields = [
-    { name: '🛒 Item', value: result.item.name, inline: true },
-    { name: '🔢 Quantity', value: `${result.quantity}`, inline: true },
-    { name: '💰 Total Cost', value: `${result.totalCost} 💎`, inline: true },
-    { name: '📦 Remaining Stock', value: result.item.stock === -1 ? '♾️ Unlimited' : `${result.item.stock - result.quantity}`, inline: true },
-    { name: '💎 New Balance', value: `${result.newBalance} 💎`, inline: true }
-  ];
-  
-  if (result.item.role_id) {
-    fields.push({ name: '🎭 Role Granted', value: `<@&${result.item.role_id}>`, inline: true });
-  }
-  
-  return createBaseEmbed({
-    color: COLORS.SUCCESS,
-    title: '✅ Purchase Successful!',
-    description: `You have successfully purchased **${result.quantity}x ${result.item.name}**!`,
-    author: options.author,
-    thumbnail: result.item.image_url || null,
-    fields: fields,
-    footer: `Purchase ID: #${result.purchase.purchase_id}`,
-    timestamp: true
-  });
-};
-
-/**
- * Sell Main Menu Embed
- */
-const sellMenuEmbed = (panels, options = {}) => {
-  const fields = [];
-  
-  panels.forEach((panel, index) => {
-    fields.push({
-      name: `${index + 1}. 📋 ${panel.title}`,
-      value: `📢 <#${panel.channel_id}>\n📝 ${panel.description || 'No description'}\n✅ Approval: ${panel.require_approval ? 'Required' : 'Not Required'}`,
-      inline: false
-    });
-  });
-  
-  if (panels.length === 0) {
-    fields.push({
-      name: '📭 No Sell Panels',
-      value: 'No sell panels have been created in this server.',
-      inline: false
-    });
-  }
-  
-  return createBaseEmbed({
-    color: COLORS.SELL,
-    title: '💰 Sell System',
-    description: 'Select a panel below to start selling your items.',
-    author: options.author,
-    thumbnail: options.thumbnail || 'https://cdn.discordapp.com/emojis/1000500000000000004.png',
-    fields: fields,
-    footer: 'Use the dropdown menu to select a panel',
-    timestamp: true
-  });
-};
-
-/**
- * Sell Listing Form Embed
- */
-const sellListingEmbed = (panel, options = {}) => {
-  const fields = [
-    { name: '📋 Panel', value: panel.title, inline: true },
-    { name: '📢 Channel', value: `<#${panel.channel_id}>`, inline: true },
-    { name: '✅ Approval Required', value: panel.require_approval ? 'Yes' : 'No', inline: true }
-  ];
-  
-  return createBaseEmbed({
-    color: COLORS.SELL,
-    title: '📝 Create Sell Listing',
-    description: 'Fill out the form below to list your item for sale.',
-    author: options.author,
-    thumbnail: options.thumbnail,
-    fields: fields,
-    footer: 'Click the button below to open the form',
-    timestamp: true
-  });
-};
 // ================ EXPORTS ================
 module.exports = {
   // Constants
@@ -1471,6 +1511,13 @@ module.exports = {
   shopRemoveItemEmbed,
   shopRestockEmbed,
   shopListEmbed,
+  
+  // Shop UI
+  shopMenuEmbed,
+  shopCategoryEmbed,
+  purchaseConfirmEmbed,
+  sellMenuEmbed,
+  sellListingEmbed,
   
   // Sell
   sellPanelCreateEmbed,
@@ -1508,16 +1555,7 @@ module.exports = {
   userInfoEmbed,
   avatarEmbed,
   bannerEmbed,
-  
-  // New Shop UI Embeds
-  shopMenuEmbed,
-  shopCategoryEmbed,
-  shopItemDetailEmbed,
-  purchaseConfirmEmbed,
-  
-  // New Sell UI Embeds
-  sellMenuEmbed,
-  sellListingEmbed,
+  botInfoEmbed,
   
   // Invites
   inviteStatsEmbed,
@@ -1529,6 +1567,9 @@ module.exports = {
   
   // Logging
   logChannelEmbed,
+  
+  // Enhanced Leaderboard
+  fullLeaderboardEmbed,
   
   // Backup
   backupCreatedEmbed,
