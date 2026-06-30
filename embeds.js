@@ -1495,7 +1495,6 @@ module.exports = {
   economyEmbed,
   
   // Shop
-  shopEmbed,
   shopAddItemEmbed,
   shopEditItemEmbed,
   shopRemoveItemEmbed,
