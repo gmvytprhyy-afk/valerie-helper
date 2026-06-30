@@ -1265,46 +1265,6 @@ const handleMessageLeaderboard = async (interaction) => {
 /**
  * /balance - Check crystal balance
  */
-const handleBalance = async (interaction) => {
-  const targetUser = interaction.options.getUser('user') || interaction.user;
-  const guildId = interaction.guildId;
-  const userId = targetUser.id;
-  
-  try {
-    const stats = await getStats(userId, guildId);
-    const rank = await getRank(userId, guildId);
-    
-    const embed = economyEmbed(
-      `💎 ${targetUser.username}'s Balance`,
-      `Here are the crystal stats for ${targetUser}`,
-      {
-        balance: stats.crystals,
-        wallet: stats.crystals,
-        bank: stats.totalEarned - stats.totalSpent,
-        streak: stats.messageMilestones || 0,
-        author: {
-          name: `${targetUser.username}`,
-          iconURL: targetUser.displayAvatarURL()
-        },
-        fields: [
-          { name: '📊 Rank', value: `#${rank} out of all members`, inline: true },
-          { name: '📈 Total Earned', value: `${stats.totalEarned} 💎`, inline: true },
-          { name: '💸 Total Spent', value: `${stats.totalSpent} 💎`, inline: true },
-          { name: '💬 Messages', value: `${stats.messages} messages`, inline: true },
-          { name: '📅 Message Milestones', value: `${stats.messageMilestones} milestones`, inline: true },
-          { name: '🎯 Invites', value: `${stats.invites} invites (${stats.activeInvites} active)`, inline: true }
-        ],
-        thumbnail: targetUser.displayAvatarURL()
-      }
-    );
-    
-    await interaction.reply({ embeds: [embed] });
-  } catch (error) {
-    console.error('Error in /balance:', error);
-    const embed = errorEmbed('Failed to fetch balance. Please try again later.');
-    await interaction.reply({ embeds: [embed] });
-  }
-};
 
 // ================ PING COMMAND ================
 
