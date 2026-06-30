@@ -667,6 +667,88 @@ const commands = [
   }
 ];
 
+// ===== ADMIN CRYSTAL COMMANDS =====
+{
+  name: 'add-crystals',
+  description: 'Add crystals to a user (Admin only)',
+  options: [
+    {
+      name: 'user',
+      description: 'User to add crystals to',
+      type: 6, // USER
+      required: true
+    },
+    {
+      name: 'amount',
+      description: 'Number of crystals to add',
+      type: 4, // INTEGER
+      required: true,
+      min_value: 1,
+      max_value: 1000000
+    },
+    {
+      name: 'reason',
+      description: 'Reason for adding crystals',
+      type: 3, // STRING
+      required: false,
+      max_length: 200
+    }
+  ]
+},
+{
+  name: 'remove-crystals',
+  description: 'Remove crystals from a user (Admin only)',
+  options: [
+    {
+      name: 'user',
+      description: 'User to remove crystals from',
+      type: 6, // USER
+      required: true
+    },
+    {
+      name: 'amount',
+      description: 'Number of crystals to remove',
+      type: 4, // INTEGER
+      required: true,
+      min_value: 1,
+      max_value: 1000000
+    },
+    {
+      name: 'reason',
+      description: 'Reason for removing crystals',
+      type: 3, // STRING
+      required: false,
+      max_length: 200
+    }
+  ]
+},
+{
+  name: 'set-crystals',
+  description: 'Set a user\'s crystals to a specific amount (Admin only)',
+  options: [
+    {
+      name: 'user',
+      description: 'User to set crystals for',
+      type: 6, // USER
+      required: true
+    },
+    {
+      name: 'amount',
+      description: 'Amount of crystals to set',
+      type: 4, // INTEGER
+      required: true,
+      min_value: 0,
+      max_value: 1000000
+    },
+    {
+      name: 'reason',
+      description: 'Reason for setting crystals',
+      type: 3, // STRING
+      required: false,
+      max_length: 200
+    }
+  ]
+}
 // ================ SLASH COMMAND REGISTRATION ================
 
 const registerCommands = async () => {
