@@ -1101,6 +1101,107 @@ const getCustomInviteLeaderboardWithUsers = async (guildId, limit = 10, client) 
   return formatted;
 };
 
+// ================ ADMIN CRYSTAL MANAGEMENT ================
+
+/**
+ * Add crystals to a user (Admin only)
+ */
+const adminAddCrystals = async (userId, guildId, amount, reason = 'Admin added') => {
+  if (amount <= 0) {
+    throw new Error('Amount must be positive');
+  }
+  
+  if (amount > 1000000) {
+    throw new Error('Cannot add more than 1,000,000 crystals at once');
+  }
+  
+  // Check if user exists in economy
+  const userExists = await getOne('crystal_economy', { user_id: userId, guild_id: guildId });
+  if (!userExists) {
+    // Create entry if it doesn't exist
+    await getOrCreateCrystalEntry(userId, guildId);
+  }
+  
+  const result = await addCrystals(userId, guildId, amount, reason, 'admin_add');
+  
+  return {
+    success: true,
+    user: userId,
+    amount: amount,
+    newBalance: result.crystals,
+    message: `✅ Added ${amount} crystals to <@${userId}>. New balance: ${result.crystals} 💎`
+  };
+};
+
+/**
+ * Remove crystals from a user (Admin only)
+ */
+const adminRemoveCrystals = async (userId, guildId, amount, reason = 'Admin removed') => {
+  if (amount <= 0) {
+    throw new Error('Amount must be positive');
+  }
+  
+  // Check if user exists
+  const userExists = await getOne('crystal_economy', { user_id: userId, guild_id: guildId });
+  if (!userExists) {
+    throw new Error('User not found in economy system');
+  }
+  
+  // Check if user has enough crystals
+  const currentBalance = await getCrystals(userId, guildId);
+  if (currentBalance < amount) {
+    throw new Error(`User only has ${currentBalance} crystals, cannot remove ${amount}`);
+  }
+  
+  const result = await removeCrystals(userId, guildId, amount, reason, 'admin_remove');
+  
+  return {
+    success: true,
+    user: userId,
+    amount: amount,
+    newBalance: result.crystals,
+    message: `✅ Removed ${amount} crystals from <@${userId}>. New balance: ${result.crystals} 💎`
+  };
+};
+
+/**
+ * Set crystals to a specific amount (Admin only)
+ */
+const adminSetCrystals = async (userId, guildId, amount, reason = 'Admin set') => {
+  if (amount < 0) {
+    throw new Error('Amount cannot be negative');
+  }
+  
+  if (amount > 1000000) {
+    throw new Error('Cannot set more than 1,000,000 crystals');
+  }
+  
+  // Check if user exists
+  const userExists = await getOne('crystal_economy', { user_id: userId, guild_id: guildId });
+  if (!userExists) {
+    await getOrCreateCrystalEntry(userId, guildId);
+  }
+  
+  const currentBalance = await getCrystals(userId, guildId);
+  const difference = amount - currentBalance;
+  
+  if (difference > 0) {
+    await addCrystals(userId, guildId, difference, reason, 'admin_set');
+  } else if (difference < 0) {
+    await removeCrystals(userId, guildId, Math.abs(difference), reason, 'admin_set');
+  }
+  
+  const newBalance = await getCrystals(userId, guildId);
+  
+  return {
+    success: true,
+    user: userId,
+    amount: amount,
+    newBalance: newBalance,
+    message: `✅ Set <@${userId}>'s crystals to ${amount} 💎`
+  };
+};
+
 // ================ EXPORTS ================
 module.exports = {
   // Core Economy
@@ -1147,6 +1248,14 @@ module.exports = {
   deleteSellPanelCommand,
   getSellPanelsByGuild,
   formatSellPanelsForDisplay,
+  // ... existing ...
+  
+  // Admin Crystal Management
+  adminAddCrystals,
+  adminRemoveCrystals,
+  adminSetCrystals,
+  
+  // ... rest of exports
   
   // Sell Listings
   createSellListing,
