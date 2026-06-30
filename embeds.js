@@ -1508,7 +1508,16 @@ module.exports = {
   userInfoEmbed,
   avatarEmbed,
   bannerEmbed,
-  botInfoEmbed,
+  
+  // New Shop UI Embeds
+  shopMenuEmbed,
+  shopCategoryEmbed,
+  shopItemDetailEmbed,
+  purchaseConfirmEmbed,
+  
+  // New Sell UI Embeds
+  sellMenuEmbed,
+  sellListingEmbed,
   
   // Invites
   inviteStatsEmbed,
