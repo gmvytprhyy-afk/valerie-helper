@@ -1,4 +1,4 @@
-// embeds.js - Complete Embed Builder System (UPDATED)
+// embeds.js - Complete Embed Builder System (FIXED with Purchase Buttons)
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 
 // ================ CONSTANTS ================
@@ -181,43 +181,6 @@ const economyEmbed = (title, description, options = {}) => {
   });
 };
 
-// ================ SHOP EMBEDS ================
-const shopEmbed = (title, description, options = {}) => {
-  const fields = options.fields || [];
-  
-  if (options.items && options.items.length > 0) {
-    options.items.forEach((item, index) => {
-      const stockText = item.stock === -1 ? '♾️ Unlimited' : item.stock === 0 ? '❌ Out of Stock' : `${item.stock} left`;
-      fields.push({
-        name: `${index + 1}. ${item.name}`,
-        value: `💰 ${item.price.toLocaleString()} 💎\n📝 ${item.description || 'No description'}\n📦 Stock: ${stockText}`,
-        inline: options.inlineItems !== false
-      });
-    });
-  }
-  
-  if (options.balance !== undefined) {
-    fields.push({
-      name: '💰 Your Balance',
-      value: `${options.balance.toLocaleString()} 💎`,
-      inline: false
-    });
-  }
-
-  return createBaseEmbed({
-    color: COLORS.SHOP,
-    title: title || '🏪 Shop',
-    description: description || 'Browse our items below!',
-    author: options.author,
-    thumbnail: options.thumbnail || 'https://cdn.discordapp.com/emojis/1000500000000000001.png',
-    image: options.image,
-    fields: fields,
-    footer: options.footer,
-    footerIcon: options.footerIcon,
-    timestamp: options.timestamp
-  });
-};
-
 // ================ SHOP UI EMBEDS ================
 
 const shopMenuEmbed = (shopData, options = {}) => {
@@ -260,28 +223,43 @@ const shopMenuEmbed = (shopData, options = {}) => {
   });
 };
 
+// ================ SHOP CATEGORY EMBED WITH PURCHASE BUTTONS ================
+
 const shopCategoryEmbed = (category, items, options = {}) => {
   const fields = [];
+  const buttons = [];
   
   items.slice(0, 10).forEach((item, index) => {
     const stockText = item.stock === -1 ? '♾️' : item.stock === 0 ? '❌' : `${item.stock}`;
     const priceText = item.price === 0 ? 'FREE' : `${item.price} 💎`;
+    
     fields.push({
       name: `${index + 1}. ${item.emoji || '🛒'} ${item.name}`,
       value: `💰 ${priceText} | 📦 ${stockText}\n📝 ${item.description || 'No description'}`,
       inline: false
     });
+    
+    // Add a purchase button for each item (if in stock)
+    if (item.stock !== 0 && item.is_active !== false) {
+      buttons.push(
+        new ButtonBuilder()
+          .setCustomId(`purchase_${item.item_id}`)
+          .setLabel(`🛒 Purchase ${item.name}`)
+          .setStyle(ButtonStyle.Success)
+      );
+    }
   });
   
   if (items.length > 10) {
     fields.push({
       name: '📊 Showing First 10',
-      value: `${items.length - 10} more items available. Use the button below to view all.`,
+      value: `${items.length - 10} more items available.`,
       inline: false
     });
   }
   
-  return createBaseEmbed({
+  // Create embed
+  const embed = createBaseEmbed({
     color: COLORS.SHOP,
     title: `📂 ${category}`,
     description: options.description || 'Select an item below to purchase.',
@@ -291,6 +269,18 @@ const shopCategoryEmbed = (category, items, options = {}) => {
     footer: `Total: ${items.length} items`,
     timestamp: true
   });
+  
+  // Return embed with button rows (max 5 buttons per row)
+  const rows = [];
+  if (buttons.length > 0) {
+    for (let i = 0; i < buttons.length; i += 5) {
+      const row = new ActionRowBuilder();
+      buttons.slice(i, i + 5).forEach(btn => row.addComponents(btn));
+      rows.push(row);
+    }
+  }
+  
+  return { embed, rows };
 };
 
 const purchaseConfirmEmbed = (result, options = {}) => {
