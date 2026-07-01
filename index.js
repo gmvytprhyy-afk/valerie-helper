@@ -3265,6 +3265,7 @@ client.on('interactionCreate', async (interaction) => {
 });
 
 // Purchase Modal Submit Handler (NEW)
+// Purchase Modal Submit Handler (UPDATED)
 client.on('interactionCreate', async (interaction) => {
   if (interaction.isModalSubmit() && interaction.customId.startsWith('purchase_modal_')) {
     const itemId = parseInt(interaction.customId.split('_')[2]);
@@ -3280,7 +3281,8 @@ client.on('interactionCreate', async (interaction) => {
     try {
       await interaction.deferReply();
       
-      const result = await purchaseShopItem(userId, guildId, itemId, quantity);
+      // ✅ Pass the interaction to create Discord ticket
+      const result = await purchaseShopItem(userId, guildId, itemId, quantity, interaction);
       
       const embed = purchaseConfirmEmbed(result, {
         author: {
@@ -3290,6 +3292,14 @@ client.on('interactionCreate', async (interaction) => {
       });
       
       await interaction.editReply({ embeds: [embed] });
+      
+      // If ticket channel was created, send a follow-up
+      if (result.ticketChannel) {
+        await interaction.followUp({ 
+          content: `🎫 A purchase ticket has been created: ${result.ticketChannel}`,
+          ephemeral: false
+        });
+      }
     } catch (error) {
       console.error('Error in purchase:', error);
       const embed = errorEmbed(error.message || 'Failed to purchase item.');
