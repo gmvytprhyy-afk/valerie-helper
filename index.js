@@ -13,7 +13,8 @@ const {
   StringSelectMenuBuilder,
   ModalBuilder,
   TextInputBuilder,
-  TextInputStyle
+  TextInputStyle,
+  PermissionFlagsBits
 } = require('discord.js');
 const config = require('./config.json');
 const { pool, initDatabase } = require('./database.js');
