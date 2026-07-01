@@ -667,10 +667,9 @@ const commands = [
   {
     name: 'backuplist',
     description: 'List all backups for this server (Admin only)'
-  }
-];
-
-// ===== ADMIN CRYSTAL COMMANDS =====
+  },
+  
+ // ===== ADMIN CRYSTAL COMMANDS =====
 {
   name: 'add-crystals',
   description: 'Add crystals to a user (Admin only)',
@@ -752,6 +751,9 @@ const commands = [
     }
   ]
 }
+  
+];
+
 // ================ SLASH COMMAND REGISTRATION ================
 
 const registerCommands = async () => {
