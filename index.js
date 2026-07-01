@@ -3509,6 +3509,100 @@ client.on('interactionCreate', async (interaction) => {
   }
 });
 
+// ================ SELL TICKET BUTTON HANDLERS ================
+
+// Approve Sell Listing Button
+client.on('interactionCreate', async (interaction) => {
+  if (interaction.isButton() && interaction.customId.startsWith('approve_sell_')) {
+    const sellId = parseInt(interaction.customId.split('_')[2]);
+    
+    // Check if user is admin or has permission
+    if (!interaction.memberPermissions.has('Administrator')) {
+      await interaction.reply({ 
+        embeds: [errorEmbed('You need **Administrator** permissions to approve sell listings.')], 
+        ephemeral: true 
+      });
+      return;
+    }
+    
+    await interaction.reply({ embeds: [infoEmbed('✅ Approving sell listing...')] });
+    await approveSellListingWithChannel(interaction, sellId);
+  }
+});
+
+// Reject Sell Listing Button
+client.on('interactionCreate', async (interaction) => {
+  if (interaction.isButton() && interaction.customId.startsWith('reject_sell_')) {
+    const sellId = parseInt(interaction.customId.split('_')[2]);
+    
+    // Check if user is admin or has permission
+    if (!interaction.memberPermissions.has('Administrator')) {
+      await interaction.reply({ 
+        embeds: [errorEmbed('You need **Administrator** permissions to reject sell listings.')], 
+        ephemeral: true 
+      });
+      return;
+    }
+    
+    // Create modal for rejection reason
+    const modal = new ModalBuilder()
+      .setCustomId(`reject_sell_modal_${sellId}`)
+      .setTitle('❌ Reject Sell Listing');
+    
+    const reasonInput = new TextInputBuilder()
+      .setCustomId('reason')
+      .setLabel('Reason for rejection')
+      .setStyle(TextInputStyle.Paragraph)
+      .setPlaceholder('Enter the reason for rejection...')
+      .setRequired(true)
+      .setMaxLength(500);
+    
+    const row = new ActionRowBuilder().addComponents(reasonInput);
+    modal.addComponents(row);
+    
+    await interaction.showModal(modal);
+  }
+});
+
+// Reject Sell Modal Submit
+client.on('interactionCreate', async (interaction) => {
+  if (interaction.isModalSubmit() && interaction.customId.startsWith('reject_sell_modal_')) {
+    const sellId = parseInt(interaction.customId.split('_')[3]);
+    const reason = interaction.fields.getTextInputValue('reason');
+    
+    await interaction.reply({ embeds: [infoEmbed('❌ Rejecting sell listing...')] });
+    await rejectSellListingWithChannel(interaction, sellId, reason);
+  }
+});
+
+// Close Sell Ticket Button
+client.on('interactionCreate', async (interaction) => {
+  if (interaction.isButton() && interaction.customId.startsWith('close_sell_')) {
+    const ticketId = parseInt(interaction.customId.split('_')[2]);
+    
+    // Check if user is the ticket owner or admin
+    const isAdmin = interaction.memberPermissions.has('Administrator');
+    const ticket = await getOne('sell_tickets', { ticket_id: ticketId });
+    
+    if (!ticket) {
+      await interaction.reply({ embeds: [errorEmbed('Ticket not found.')], ephemeral: true });
+      return;
+    }
+    
+    if (ticket.user_id !== interaction.user.id && !isAdmin) {
+      await interaction.reply({ 
+        embeds: [errorEmbed('You do not have permission to close this ticket.')], 
+        ephemeral: true 
+      });
+      return;
+    }
+    
+    await interaction.reply({ embeds: [infoEmbed('🔒 Closing sell ticket...')] });
+    await closeSellTicket(interaction, ticketId);
+  }
+});
+
+
 // ================ ADMIN CRYSTAL HANDLERS ================
 
 /**
