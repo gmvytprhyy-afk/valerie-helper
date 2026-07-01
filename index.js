@@ -3463,6 +3463,39 @@ client.on('interactionCreate', async (interaction) => {
   }
 });
 
+// Transcript Purchase Ticket Button
+client.on('interactionCreate', async (interaction) => {
+  if (interaction.isButton() && interaction.customId.startsWith('transcript_purchase_')) {
+    const ticketId = parseInt(interaction.customId.split('_')[2]);
+    
+    // Get messages from the channel
+    const messages = await interaction.channel.messages.fetch({ limit: 100 });
+    
+    // Create transcript
+    let transcript = `📋 PURCHASE TICKET TRANSCRIPT\n`;
+    transcript += `Ticket ID: #${ticketId}\n`;
+    transcript += `Generated: ${new Date().toLocaleString()}\n`;
+    transcript += `${'='.repeat(50)}\n\n`;
+    
+    messages.reverse().forEach(msg => {
+      const time = msg.createdAt.toLocaleString();
+      const username = msg.author.tag;
+      transcript += `[${time}] ${username}: ${msg.content || '(No content)'}\n`;
+    });
+    
+    // Send as file
+    const buffer = Buffer.from(transcript, 'utf-8');
+    await interaction.reply({
+      content: '📄 Here is your ticket transcript:',
+      files: [{
+        attachment: buffer,
+        name: `transcript_${ticketId}.txt`
+      }],
+      ephemeral: true
+    });
+  }
+});
+
 // ================ ADMIN CRYSTAL HANDLERS ================
 
 /**
