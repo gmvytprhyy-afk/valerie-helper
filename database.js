@@ -2517,5 +2517,21 @@ module.exports = {
   markBackupRestored,
   logRestore,
   deleteExpiredBackups,
-  getBackupStats
+  getBackupStats,
+  
+  // ... all existing exports ...
+  
+  // Purchase Ticket Channel Helpers
+  createPurchaseTicketChannel,
+  sendPurchaseTicketMessage,
+  closePurchaseTicket,
+  
+  // Sell Ticket Channel Helpers
+  createSellTicketChannel,
+  sendSellTicketMessage,
+  closeSellTicket,
+  approveSellListingWithChannel,
+  rejectSellListingWithChannel
+  
+  // ... r
 };
