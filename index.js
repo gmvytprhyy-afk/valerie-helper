@@ -3378,6 +3378,7 @@ client.on('interactionCreate', async (interaction) => {
 });
 
 // Sell Listing Modal Submit
+// Sell Listing Modal Submit (UPDATED)
 client.on('interactionCreate', async (interaction) => {
   if (interaction.isModalSubmit() && interaction.customId === 'sell_listing_modal') {
     const name = interaction.fields.getTextInputValue('item_name');
@@ -3385,20 +3386,23 @@ client.on('interactionCreate', async (interaction) => {
     const quantity = parseInt(interaction.fields.getTextInputValue('item_quantity')) || 1;
     const description = interaction.fields.getTextInputValue('item_description');
     
+    if (!interaction.guildId) {
+      await interaction.reply({ embeds: [errorEmbed('This command can only be used in a server.')] });
+      return;
+    }
+    
     try {
-      // Get the panel from the previous selection
-      // This would need to store the panel ID in a temp variable
-      // For now, let's assume the user has a panel selected
+      await interaction.deferReply();
+      
       const panels = await getSellPanelsByGuild(interaction.guildId);
       if (panels.length === 0) {
-        await interaction.reply({
-          embeds: [errorEmbed('No sell panels available. Please contact an admin.')]
-        });
+        await interaction.reply({ embeds: [errorEmbed('No sell panels available. Please contact an admin.')] });
         return;
       }
       
-      const panelId = panels[0].panel_id; // Use first panel as default h
+      const panelId = panels[0].panel_id;
       
+      // ✅ Pass interaction to create Discord ticket
       const result = await createSellListing(
         panelId,
         interaction.user.id,
@@ -3408,7 +3412,8 @@ client.on('interactionCreate', async (interaction) => {
           price: price,
           quantity: quantity,
           description: description
-        }
+        },
+        interaction  // ← Pass the interaction
       );
       
       const embed = successEmbed('✅ Sell Listing Created', {
@@ -3425,10 +3430,18 @@ client.on('interactionCreate', async (interaction) => {
         }
       });
       
-      await interaction.reply({ embeds: [embed] });
+      await interaction.editReply({ embeds: [embed] });
+      
+      // If ticket channel was created, send a follow-up
+      if (result.ticketChannel) {
+        await interaction.followUp({ 
+          content: `🎫 A sell ticket has been created: ${result.ticketChannel}`,
+          ephemeral: false
+        });
+      }
     } catch (error) {
       console.error('Error in sell listing modal:', error);
-      await interaction.reply({
+      await interaction.editReply({
         embeds: [errorEmbed(error.message || 'Failed to create sell listing.')]
       });
     }
