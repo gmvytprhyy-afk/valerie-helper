@@ -3435,6 +3435,34 @@ client.on('interactionCreate', async (interaction) => {
   }
 });
 
+// Close Purchase Ticket Button
+client.on('interactionCreate', async (interaction) => {
+  if (interaction.isButton() && interaction.customId.startsWith('close_purchase_')) {
+    const ticketId = parseInt(interaction.customId.split('_')[2]);
+    
+    // Check if user is the ticket owner or admin
+    const isAdmin = interaction.memberPermissions.has('Administrator');
+    const ticket = await getOne('purchase_tickets', { ticket_id: ticketId });
+    
+    if (!ticket) {
+      await interaction.reply({ embeds: [errorEmbed('Ticket not found.')], ephemeral: true });
+      return;
+    }
+    
+    if (ticket.user_id !== interaction.user.id && !isAdmin) {
+      await interaction.reply({ 
+        embeds: [errorEmbed('You do not have permission to close this ticket.')], 
+        ephemeral: true 
+      });
+      return;
+    }
+    
+    await interaction.reply({ embeds: [infoEmbed('🔒 Closing ticket...')] });
+    
+    await closePurchaseTicket(interaction, ticketId);
+  }
+});
+
 // ================ ADMIN CRYSTAL HANDLERS ================
 
 /**
