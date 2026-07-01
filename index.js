@@ -111,7 +111,10 @@ const {
   processCustomInviteJoin,
   processCustomInviteLeave,
   getCustomInviteStatsForUser,
-  getCustomInviteLeaderboardWithUsers
+  getCustomInviteLeaderboardWithUsers,
+  adminAddCrystals,
+  adminRemoveCrystals,
+  adminSetCrystals
 } = require('./economy.js');
 const {
   getTicketById,
