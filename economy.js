@@ -781,7 +781,9 @@ const deleteSellPanelCommand = async (panelId, guildId) => {
 /**
  * Create a sell listing (User)
  */
-const createSellListing = async (panelId, userId, guildId, itemData) => {
+// economy.js - Updated sell listing with Discord ticket
+
+const createSellListing = async (panelId, userId, guildId, itemData, interaction = null) => {
   if (!itemData.name || itemData.name.length < 1) {
     throw new Error('Item name is required');
   }
@@ -804,8 +806,10 @@ const createSellListing = async (panelId, userId, guildId, itemData) => {
     throw new Error('Panel not available in this server');
   }
   
+  // Create sell item
   const sellItem = await createSellItem(panelId, userId, guildId, itemData);
   
+  // Create ticket
   const ticket = await createSellTicket(
     sellItem.sell_id,
     userId,
@@ -815,14 +819,51 @@ const createSellListing = async (panelId, userId, guildId, itemData) => {
     itemData.quantity
   );
   
+  // 🔥 CREATE DISCORD TICKET CHANNEL
+  if (interaction && interaction.guild) {
+    try {
+      const guild = interaction.guild;
+      const user = interaction.user;
+      
+      // Create channel ticket
+      const channel = await createSellTicketChannel(guild, userId, sellItem);
+      
+      // Send initial message
+      await sendSellTicketMessage(channel, sellItem, user);
+      
+      // Update ticket with channel ID
+      await update('sell_tickets', 
+        { channel_id: channel.id }, 
+        { ticket_id: ticket.ticket_id }
+      );
+      
+      return {
+        success: true,
+        sellItem: sellItem,
+        ticket: ticket,
+        ticketChannel: channel,
+        message: `✅ Your listing for "${itemData.name}" has been created and is pending review! A ticket has been created in ${channel}.`
+      };
+    } catch (error) {
+      console.error('Error creating sell ticket channel:', error);
+      return {
+        success: true,
+        sellItem: sellItem,
+        ticket: ticket,
+        ticketChannel: null,
+        message: `✅ Your listing for "${itemData.name}" has been created and is pending review! (Ticket creation failed)`
+      };
+    }
+  }
+  
   return {
     success: true,
     sellItem: sellItem,
     ticket: ticket,
+    ticketChannel: null,
     message: `✅ Your listing for "${itemData.name}" has been created and is pending review!`
   };
 };
-
 /**
  * Get sell panels for a guild
  */
