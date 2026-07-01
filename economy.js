@@ -1202,6 +1202,19 @@ const adminSetCrystals = async (userId, guildId, amount, reason = 'Admin set') =
   };
 };
 
+// economy.js - Add these if not already there
+
+const adminAddCrystals = async (userId, guildId, amount, reason = 'Admin added') => {
+  // ... function code
+};
+
+const adminRemoveCrystals = async (userId, guildId, amount, reason = 'Admin removed') => {
+  // ... function code
+};
+
+const adminSetCrystals = async (userId, guildId, amount, reason = 'Admin set') => {
+  // ... function code
+};
 // ================ EXPORTS ================
 module.exports = {
   // Core Economy
