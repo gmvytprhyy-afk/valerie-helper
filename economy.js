@@ -36,6 +36,18 @@ const {
   getPurchaseHistory,
   getTotalSpent,
   
+  // economy.js - Add to the imports at the top
+  // ... existing imports
+  createPurchaseTicketChannel,
+  sendPurchaseTicketMessage,
+  closePurchaseTicket,
+  createSellTicketChannel,
+  sendSellTicketMessage,
+  closeSellTicket,
+  approveSellListingWithChannel,
+  rejectSellListingWithChannel,
+  // ... rest of 
+  
   // Sell
   createSellPanel,
   getSellPanels,
