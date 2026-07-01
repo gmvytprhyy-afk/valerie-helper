@@ -2211,6 +2211,174 @@ const closePurchaseTicket = async (interaction, ticketId) => {
   );
 };
 
+// ================ SELL TICKET CHANNEL HELPERS ================
+
+/**
+ * Create a sell ticket channel in Discord
+ */
+const createSellTicketChannel = async (guild, userId, sellItem) => {
+  // Get or create ticket category
+  const config = await getTicketConfig(guild.id);
+  const categoryId = config?.sell_category_id;
+  
+  const category = categoryId ? guild.channels.cache.get(categoryId) : null;
+  
+  // Create the channel
+  const channel = await guild.channels.create({
+    name: `sell-${sellItem.sell_id}`,
+    type: 0, // Text channel
+    parent: category ? category.id : null,
+    permissionOverwrites: [
+      {
+        id: guild.id,
+        deny: ['ViewChannel']
+      },
+      {
+        id: userId,
+        allow: ['ViewChannel', 'SendMessages', 'ReadMessageHistory', 'AttachFiles', 'EmbedLinks']
+      },
+      {
+        id: guild.client.user.id,
+        allow: ['ViewChannel', 'SendMessages', 'ReadMessageHistory', 'ManageMessages']
+      }
+    ]
+  });
+  
+  return channel;
+};
+
+/**
+ * Send initial sell ticket message
+ */
+const sendSellTicketMessage = async (channel, sellItem, user) => {
+  const embed = new EmbedBuilder()
+    .setColor('#F39C12')
+    .setTitle('💰 Sell Listing Created')
+    .setDescription(`${user.username} has listed an item for sale!`)
+    .setThumbnail(user.displayAvatarURL({ dynamic: true }))
+    .addFields(
+      { name: '🎫 Ticket ID', value: `#${sellItem.sell_id}`, inline: true },
+      { name: '🛒 Item', value: sellItem.item_name, inline: true },
+      { name: '💰 Price', value: `${sellItem.price} 💎 each`, inline: true },
+      { name: '🔢 Quantity', value: `${sellItem.quantity}`, inline: true },
+      { name: '💎 Total Value', value: `${sellItem.price * sellItem.quantity} 💎`, inline: true },
+      { name: '📝 Description', value: sellItem.item_description || 'No description', inline: false },
+      { name: '📊 Status', value: '⏳ Pending Approval', inline: true }
+    )
+    .setTimestamp()
+    .setFooter({ text: 'Sell Ticket' });
+  
+  await channel.send({ 
+    content: `<@${user.id}>`,
+    embeds: [embed]
+  });
+  
+  // Send a follow-up message with ticket actions
+  const row = new ActionRowBuilder()
+    .addComponents(
+      new ButtonBuilder()
+        .setCustomId(`approve_sell_${sellItem.sell_id}`)
+        .setLabel('✅ Approve')
+        .setStyle(ButtonStyle.Success),
+      new ButtonBuilder()
+        .setCustomId(`reject_sell_${sellItem.sell_id}`)
+        .setLabel('❌ Reject')
+        .setStyle(ButtonStyle.Danger),
+      new ButtonBuilder()
+        .setCustomId(`close_sell_${sellItem.sell_id}`)
+        .setLabel('🔒 Close')
+        .setStyle(ButtonStyle.Secondary)
+    );
+  
+  await channel.send({ 
+    content: '📋 **Ticket Actions**',
+    components: [row]
+  });
+};
+
+/**
+ * Close a sell ticket
+ */
+const closeSellTicket = async (interaction, ticketId) => {
+  const channel = interaction.channel;
+  
+  // Send closing message
+  const embed = new EmbedBuilder()
+    .setColor('#ED4245')
+    .setTitle('🔒 Sell Ticket Closed')
+    .setDescription(`Sell ticket #${ticketId} has been closed.`)
+    .setTimestamp()
+    .setFooter({ text: 'Ticket System' });
+  
+  await channel.send({ embeds: [embed] });
+  
+  // Delete channel after 5 seconds
+  setTimeout(async () => {
+    await channel.delete();
+  }, 5000);
+  
+  // Update database
+  await update('sell_tickets', 
+    { status: 'closed', reviewed_at: new Date() }, 
+    { ticket_id: ticketId }
+  );
+};
+
+/**
+ * Approve a sell listing
+ */
+const approveSellListingWithChannel = async (interaction, sellId) => {
+  const channel = interaction.channel;
+  
+  // Update database
+  await update('sell_items', 
+    { status: 'approved', approved_by: interaction.user.id, approved_at: new Date() }, 
+    { sell_id: sellId }
+  );
+  
+  await update('sell_tickets', 
+    { status: 'approved', manager_id: interaction.user.id, reviewed_at: new Date() }, 
+    { sell_id: sellId }
+  );
+  
+  const embed = new EmbedBuilder()
+    .setColor('#57F287')
+    .setTitle('✅ Sell Listing Approved')
+    .setDescription(`Sell ticket #${sellId} has been approved!`)
+    .setTimestamp()
+    .setFooter({ text: 'Sell System' });
+  
+  await channel.send({ embeds: [embed] });
+};
+
+/**
+ * Reject a sell listing
+ */
+const rejectSellListingWithChannel = async (interaction, sellId, reason) => {
+  const channel = interaction.channel;
+  
+  // Update database
+  await update('sell_items', 
+    { status: 'rejected', rejected_by: interaction.user.id, rejected_at: new Date(), rejection_reason: reason }, 
+    { sell_id: sellId }
+  );
+  
+  await update('sell_tickets', 
+    { status: 'rejected', manager_id: interaction.user.id, reviewed_at: new Date(), notes: reason }, 
+    { sell_id: sellId }
+  );
+  
+  const embed = new EmbedBuilder()
+    .setColor('#ED4245')
+    .setTitle('❌ Sell Listing Rejected')
+    .setDescription(`Sell ticket #${sellId} has been rejected.`)
+    .addFields({ name: '📝 Reason', value: reason, inline: false })
+    .setTimestamp()
+    .setFooter({ text: 'Sell System' });
+  
+  await channel.send({ embeds: [embed] });
+};
+
 // ================ EXPORTS ================
 module.exports = {
   // ... existing exports ...
