@@ -2103,6 +2103,114 @@ const getCustomInvitesByUser = async (userId, guildId) => {
   return await getAll('custom_invites', { inviter_id: userId, guild_id: guildId });
 };
 
+// ================ PURCHASE TICKET CHANNEL HELPERS ================
+
+/**
+ * Create a purchase ticket channel in Discord
+ */
+const createPurchaseTicketChannel = async (guild, userId, purchase, item) => {
+  // Get or create ticket category
+  const config = await getTicketConfig(guild.id);
+  const categoryId = config?.purchase_category_id;
+  
+  const category = categoryId ? guild.channels.cache.get(categoryId) : null;
+  
+  // Create the channel
+  const channel = await guild.channels.create({
+    name: `purchase-${purchase.purchase_id}`,
+    type: 0, // Text channel
+    parent: category ? category.id : null,
+    permissionOverwrites: [
+      {
+        id: guild.id,
+        deny: ['ViewChannel']
+      },
+      {
+        id: userId,
+        allow: ['ViewChannel', 'SendMessages', 'ReadMessageHistory', 'AttachFiles', 'EmbedLinks']
+      },
+      {
+        id: guild.client.user.id,
+        allow: ['ViewChannel', 'SendMessages', 'ReadMessageHistory', 'ManageMessages']
+      }
+    ]
+  });
+  
+  return channel;
+};
+
+/**
+ * Send initial purchase ticket message
+ */
+const sendPurchaseTicketMessage = async (channel, purchase, item, user) => {
+  const embed = new EmbedBuilder()
+    .setColor('#57F287')
+    .setTitle('🛒 Purchase Confirmation')
+    .setDescription(`Thank you for your purchase, ${user.username}!`)
+    .setThumbnail(user.displayAvatarURL({ dynamic: true }))
+    .addFields(
+      { name: '🎫 Ticket ID', value: `#${purchase.purchase_id}`, inline: true },
+      { name: '🛒 Item', value: item.name, inline: true },
+      { name: '🔢 Quantity', value: `${purchase.quantity}`, inline: true },
+      { name: '💰 Total Cost', value: `${purchase.total_cost} 💎`, inline: true },
+      { name: '📦 Remaining Stock', value: item.stock === -1 ? '♾️ Unlimited' : `${item.stock - purchase.quantity}`, inline: true },
+      { name: '💎 New Balance', value: `${await getCrystals(user.id, channel.guild.id)} 💎`, inline: true }
+    )
+    .setTimestamp()
+    .setFooter({ text: 'Purchase Ticket' });
+  
+  await channel.send({ 
+    content: `<@${user.id}>`,
+    embeds: [embed]
+  });
+  
+  // Send a follow-up message with ticket actions
+  const row = new ActionRowBuilder()
+    .addComponents(
+      new ButtonBuilder()
+        .setCustomId(`close_purchase_${purchase.purchase_id}`)
+        .setLabel('🔒 Close Ticket')
+        .setStyle(ButtonStyle.Danger),
+      new ButtonBuilder()
+        .setCustomId(`transcript_purchase_${purchase.purchase_id}`)
+        .setLabel('📄 Transcript')
+        .setStyle(ButtonStyle.Secondary)
+    );
+  
+  await channel.send({ 
+    content: '📋 **Ticket Actions**',
+    components: [row]
+  });
+};
+
+/**
+ * Close a purchase ticket
+ */
+const closePurchaseTicket = async (interaction, ticketId) => {
+  const channel = interaction.channel;
+  
+  // Send closing message
+  const embed = new EmbedBuilder()
+    .setColor('#ED4245')
+    .setTitle('🔒 Ticket Closed')
+    .setDescription(`Purchase ticket #${ticketId} has been closed.`)
+    .setTimestamp()
+    .setFooter({ text: 'Ticket System' });
+  
+  await channel.send({ embeds: [embed] });
+  
+  // Delete channel after 5 seconds
+  setTimeout(async () => {
+    await channel.delete();
+  }, 5000);
+  
+  // Update database
+  await update('purchase_tickets', 
+    { status: 'closed', processed_at: new Date() }, 
+    { ticket_id: ticketId }
+  );
+};
+
 // ================ EXPORTS ================
 module.exports = {
   // ... existing exports ...
