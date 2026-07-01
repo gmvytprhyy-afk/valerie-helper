@@ -539,7 +539,9 @@ const restockShopItem = async (itemId, guildId, amount) => {
 /**
  * Purchase an item from the shop
  */
-const purchaseShopItem = async (userId, guildId, itemId, quantity = 1) => {
+// economy.js - Updated purchase with Discord ticket
+
+const purchaseShopItem = async (userId, guildId, itemId, quantity = 1, interaction = null) => {
   if (quantity < 1) {
     throw new Error('Quantity must be at least 1');
   }
@@ -565,8 +567,53 @@ const purchaseShopItem = async (userId, guildId, itemId, quantity = 1) => {
     throw new Error(`Insufficient crystals. You need ${totalCost} but have ${balance}.`);
   }
   
+  // Process purchase
   const purchase = await createPurchase(userId, guildId, itemId, quantity);
   const newBalance = await getCrystals(userId, guildId);
+  
+  // 🔥 CREATE DISCORD TICKET CHANNEL
+  if (interaction && interaction.guild) {
+    try {
+      const guild = interaction.guild;
+      const user = interaction.user;
+      
+      // Create channel ticket
+      const channel = await createPurchaseTicketChannel(guild, userId, purchase, item);
+      
+      // Send initial message
+      await sendPurchaseTicketMessage(channel, purchase, item, user);
+      
+      // Update ticket with channel ID
+      await update('purchase_tickets', 
+        { channel_id: channel.id }, 
+        { ticket_id: purchase.purchase_id }
+      );
+      
+      return {
+        success: true,
+        purchase: purchase,
+        item: item,
+        quantity: quantity,
+        totalCost: totalCost,
+        newBalance: newBalance,
+        ticketChannel: channel,
+        message: `✅ You purchased ${quantity}x ${item.name} for ${totalCost} crystals! A ticket has been created in ${channel}.`
+      };
+    } catch (error) {
+      console.error('Error creating ticket channel:', error);
+      // Still return purchase even if ticket creation fails
+      return {
+        success: true,
+        purchase: purchase,
+        item: item,
+        quantity: quantity,
+        totalCost: totalCost,
+        newBalance: newBalance,
+        ticketChannel: null,
+        message: `✅ You purchased ${quantity}x ${item.name} for ${totalCost} crystals! (Ticket creation failed)`
+      };
+    }
+  }
   
   return {
     success: true,
@@ -575,10 +622,10 @@ const purchaseShopItem = async (userId, guildId, itemId, quantity = 1) => {
     quantity: quantity,
     totalCost: totalCost,
     newBalance: newBalance,
+    ticketChannel: null,
     message: `✅ You purchased ${quantity}x ${item.name} for ${totalCost} crystals!`
   };
 };
-
 /**
  * Get shop items with category filter
  */
